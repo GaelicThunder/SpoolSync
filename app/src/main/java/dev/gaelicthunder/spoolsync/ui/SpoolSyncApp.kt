@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.gaelicthunder.spoolsync.data.FilamentProfile
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,160 +33,274 @@ fun SpoolSyncApp(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val connectionStatus by viewModel.connectionStatus.collectAsState()
     val availableBrands by viewModel.availableBrands.collectAsState()
+    val availableMaterials by viewModel.availableMaterials.collectAsState()
+    val selectedBrand by viewModel.selectedBrandFilter.collectAsState()
+    val selectedMaterial by viewModel.selectedMaterialFilter.collectAsState()
     val context = LocalContext.current
+
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showFiltersDialog by remember { mutableStateOf(false) }
 
-    Scaffold(
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showCreateDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Create custom")
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "SpoolSync",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(vertical = 16.dp)
+                    )
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                        label = { Text("Home") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.Favorite, contentDescription = null) },
+                        label = { Text("Favorites") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.QrCodeScanner, contentDescription = null) },
+                        label = { Text("Scan QR/NFC") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.Palette, contentDescription = null) },
+                        label = { Text("Color Browser") },
+                        selected = false,
+                        onClick = {
+                            viewModel.searchFilamentColors()
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                        label = { Text("Settings") },
+                        selected = false,
+                        onClick = {
+                            showSettingsDialog = true
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+                }
             }
         }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp)
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "SpoolSync",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = connectionStatus,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
-                    IconButton(onClick = { showSettingsDialog = true }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
+    ) {
+        Scaffold(
+            floatingActionButton = {
+                FloatingActionButton(onClick = { showCreateDialog = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "Create custom")
                 }
             }
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 16.dp)
+            ) {
+                Spacer(modifier = Modifier.height(16.dp))
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { viewModel.updateSearchQuery(it) },
-                label = { Text("Search SpoolmanDB") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(
-                    onSearch = { viewModel.searchFilaments(searchQuery) }
-                ),
-                trailingIcon = {
-                    IconButton(onClick = { viewModel.searchFilaments(searchQuery) }) {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
-                    }
-                }
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (favoriteProfiles.isEmpty() && allProfiles.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "Menu")
+                        }
                         Text(
-                            text = "Search for filaments or create a custom profile",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "SpoolSync",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold
                         )
                     }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f)
-                ) {
-                    if (favoriteProfiles.isNotEmpty()) {
-                        item {
-                            Text(
-                                text = "Favorites",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
-                        }
 
-                        items(favoriteProfiles, key = { it.id }) { profile ->
-                            FilamentCard(
-                                profile = profile,
-                                onClick = { onFilamentClick(profile.id) },
-                                onToggleFavorite = { viewModel.toggleFavorite(profile) },
-                                onShare = {
-                                    val json = viewModel.exportProfile(profile)
-                                    val intent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "application/json"
-                                        putExtra(Intent.EXTRA_SUBJECT, "SpoolSync: ${profile.name}")
-                                        putExtra(Intent.EXTRA_TEXT, json)
-                                    }
-                                    context.startActivity(Intent.createChooser(intent, "Share profile"))
-                                },
-                                onDelete = if (profile.isCustom) {
-                                    { viewModel.deleteProfile(profile) }
-                                } else null
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = connectionStatus,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
+                        IconButton(onClick = { showFiltersDialog = true }) {
+                            Icon(Icons.Default.FilterList, contentDescription = "Filters")
                         }
-
-                        item { Spacer(modifier = Modifier.height(16.dp)) }
                     }
+                }
 
-                    val nonFavorites = allProfiles.filter { !it.isFavorite }
-                    if (nonFavorites.isNotEmpty()) {
-                        item {
-                            Text(
-                                text = "Search Results",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(vertical = 8.dp)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { viewModel.updateSearchQuery(it) },
+                    label = { Text("Search SpoolmanDB") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(
+                        onSearch = { viewModel.searchFilaments(searchQuery) }
+                    ),
+                    trailingIcon = {
+                        IconButton(onClick = { viewModel.searchFilaments(searchQuery) }) {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        }
+                    }
+                )
+
+                if (selectedBrand != null || selectedMaterial != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        selectedBrand?.let { brand ->
+                            FilterChip(
+                                selected = true,
+                                onClick = { viewModel.setBrandFilter(null) },
+                                label = { Text(brand) },
+                                trailingIcon = { Icon(Icons.Default.Close, contentDescription = null) }
                             )
                         }
-
-                        items(nonFavorites, key = { it.id }) { profile ->
-                            FilamentCard(
-                                profile = profile,
-                                onClick = { onFilamentClick(profile.id) },
-                                onToggleFavorite = { viewModel.toggleFavorite(profile) },
-                                onShare = {
-                                    val json = viewModel.exportProfile(profile)
-                                    val intent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "application/json"
-                                        putExtra(Intent.EXTRA_SUBJECT, "SpoolSync: ${profile.name}")
-                                        putExtra(Intent.EXTRA_TEXT, json)
-                                    }
-                                    context.startActivity(Intent.createChooser(intent, "Share profile"))
-                                },
-                                onDelete = null
+                        selectedMaterial?.let { material ->
+                            FilterChip(
+                                selected = true,
+                                onClick = { viewModel.setMaterialFilter(null) },
+                                label = { Text(material) },
+                                trailingIcon = { Icon(Icons.Default.Close, contentDescription = null) }
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val filteredProfiles = allProfiles.filter {
+                    (selectedBrand == null || it.brand == selectedBrand) &&
+                    (selectedMaterial == null || it.material == selectedMaterial)
+                }
+
+                if (favoriteProfiles.isEmpty() && filteredProfiles.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Search for filaments or create a custom profile",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .weight(1f)
+                    ) {
+                        if (favoriteProfiles.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "Favorites",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            }
+
+                            items(favoriteProfiles, key = { it.id }) { profile ->
+                                FilamentCard(
+                                    profile = profile,
+                                    onClick = { onFilamentClick(profile.id) },
+                                    onToggleFavorite = { viewModel.toggleFavorite(profile) },
+                                    onShare = {
+                                        val json = viewModel.exportProfile(profile)
+                                        val intent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "application/json"
+                                            putExtra(Intent.EXTRA_SUBJECT, "SpoolSync: ${profile.name}")
+                                            putExtra(Intent.EXTRA_TEXT, json)
+                                        }
+                                        context.startActivity(Intent.createChooser(intent, "Share profile"))
+                                    },
+                                    onDelete = if (profile.isCustom) {
+                                        { viewModel.deleteProfile(profile) }
+                                    } else null
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+
+                            item { Spacer(modifier = Modifier.height(16.dp)) }
+                        }
+
+                        val nonFavorites = filteredProfiles.filter { !it.isFavorite }
+                        if (nonFavorites.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "Search Results",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            }
+
+                            items(nonFavorites, key = { it.id }) { profile ->
+                                FilamentCard(
+                                    profile = profile,
+                                    onClick = { onFilamentClick(profile.id) },
+                                    onToggleFavorite = { viewModel.toggleFavorite(profile) },
+                                    onShare = {
+                                        val json = viewModel.exportProfile(profile)
+                                        val intent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "application/json"
+                                            putExtra(Intent.EXTRA_SUBJECT, "SpoolSync: ${profile.name}")
+                                            putExtra(Intent.EXTRA_TEXT, json)
+                                        }
+                                        context.startActivity(Intent.createChooser(intent, "Share profile"))
+                                    },
+                                    onDelete = null
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
                         }
                     }
                 }
@@ -214,6 +329,18 @@ fun SpoolSyncApp(
             onDisconnect = {
                 viewModel.disconnectPrinter()
             }
+        )
+    }
+
+    if (showFiltersDialog) {
+        FiltersDialog(
+            brands = availableBrands,
+            materials = availableMaterials,
+            selectedBrand = selectedBrand,
+            selectedMaterial = selectedMaterial,
+            onBrandSelected = { viewModel.setBrandFilter(it) },
+            onMaterialSelected = { viewModel.setMaterialFilter(it) },
+            onDismiss = { showFiltersDialog = false }
         )
     }
 }
