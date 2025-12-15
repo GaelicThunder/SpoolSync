@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 
@@ -48,7 +47,7 @@ fun ColorBrowserScreen(
                     .padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(modifier = Modifier.size(48.dp))
             }
         } else {
             LazyVerticalGrid(
@@ -60,7 +59,7 @@ fun ColorBrowserScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(swatches, key = { "${it.brand}_${it.name}" }) { swatch ->
+                items(swatches, key = { "${it.brand}_${it.name}_${it.material}" }) { swatch ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
