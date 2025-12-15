@@ -237,7 +237,7 @@ fun DetailRow(label: String, value: String) {
             fontWeight = FontWeight.Medium
         )
     }
-    HorizontalDivider()
+    Divider()
 }
 
 @Composable
