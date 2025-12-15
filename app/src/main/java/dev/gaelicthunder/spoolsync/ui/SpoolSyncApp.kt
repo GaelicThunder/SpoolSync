@@ -100,7 +100,7 @@ fun SpoolSyncApp(
                             }
                         }
                     }
-                    HorizontalDivider()
+                    Divider()
                     Spacer(modifier = Modifier.height(16.dp))
 
                     NavigationDrawerItem(
