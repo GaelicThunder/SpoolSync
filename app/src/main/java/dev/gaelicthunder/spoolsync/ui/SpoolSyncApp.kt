@@ -28,6 +28,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import coil.compose.AsyncImage
 import dev.gaelicthunder.spoolsync.data.FilamentProfile
 import kotlinx.coroutines.launch
@@ -47,8 +48,8 @@ fun SpoolSyncApp(
     val connectionStatus by viewModel.connectionStatus.collectAsState()
     val availableBrands by viewModel.availableBrands.collectAsState()
     val availableMaterials by viewModel.availableMaterials.collectAsState()
-    val selectedBrand by viewModel.selectedBrandFilter.collectAsState()
-    val selectedMaterial by viewModel.selectedMaterialFilter.collectAsState()
+    val selectedBrands by viewModel.selectedBrands.collectAsState()
+    val selectedMaterials by viewModel.selectedMaterials.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -197,141 +198,102 @@ fun SpoolSyncApp(
         }
     ) {
         Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = {},
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu")
-                        }
-                    },
-                    actions = {
-                        if (connectionStatus != "Disconnected") {
-                            Badge(
-                                containerColor = if (connectionStatus == "Connected") 
-                                    MaterialTheme.colorScheme.primary 
-                                else 
-                                    MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier.padding(end = 8.dp)
-                            ) {
-                                Text(
-                                    text = connectionStatus,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    modifier = Modifier.padding(horizontal = 4.dp)
-                                )
-                            }
-                        }
-                        IconButton(onClick = { showFiltersDialog = true }) {
-                            Badge(
-                                containerColor = if (selectedBrand != null || selectedMaterial != null)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    Color.Transparent
-                            ) {
-                                Icon(Icons.Default.FilterList, contentDescription = "Filters")
-                            }
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                )
-            },
             floatingActionButton = {
                 ExtendedFloatingActionButton(
                     onClick = { showCreateDialog = true },
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
                     text = { Text("Create") }
                 )
-            }
-        ) { padding ->
+            },
+            containerColor = MaterialTheme.colorScheme.background
+        ) { _ ->
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
+                modifier = Modifier.fillMaxSize()
             ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.updateSearchQuery(it) },
-                        label = { Text("Search SpoolmanDB") },
-                        placeholder = { Text("Brand, material, color...") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(
-                            onSearch = { 
-                                if (searchQuery.isNotBlank()) {
-                                    viewModel.searchFilaments(searchQuery)
-                                    focusManager.clearFocus()
-                                }
-                            }
-                        ),
-                        leadingIcon = {
-                            Icon(Icons.Default.Search, contentDescription = null)
-                        },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.updateSearchQuery("") }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear")
-                                }
-                            }
-                        }
-                    )
-
-                    AnimatedVisibility(
-                        visible = selectedBrand != null || selectedMaterial != null,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    tonalElevation = 2.dp
+                ) {
+                    Column {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .statusBarsPadding()
+                                .padding(horizontal = 4.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            selectedBrand?.let { brand ->
-                                FilterChip(
-                                    selected = true,
-                                    onClick = { viewModel.setBrandFilter(null) },
-                                    label = { Text(brand) },
-                                    trailingIcon = { 
-                                        Icon(
-                                            Icons.Default.Close, 
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        ) 
-                                    }
-                                )
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, contentDescription = "Menu")
                             }
-                            selectedMaterial?.let { material ->
-                                FilterChip(
-                                    selected = true,
-                                    onClick = { viewModel.setMaterialFilter(null) },
-                                    label = { Text(material) },
-                                    trailingIcon = { 
-                                        Icon(
-                                            Icons.Default.Close, 
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        ) 
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (connectionStatus != "Disconnected") {
+                                    Badge(
+                                        containerColor = if (connectionStatus == "Connected") 
+                                            MaterialTheme.colorScheme.primary 
+                                        else 
+                                            MaterialTheme.colorScheme.surfaceVariant,
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = connectionStatus,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        )
                                     }
-                                )
+                                }
+                                IconButton(onClick = { showFiltersDialog = true }) {
+                                    Badge(
+                                        containerColor = if (selectedBrands.isNotEmpty() || selectedMaterials.isNotEmpty())
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            Color.Transparent
+                                    ) {
+                                        Icon(Icons.Default.FilterList, contentDescription = "Filters")
+                                    }
+                                }
                             }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { viewModel.updateSearchQuery(it) },
+                                label = { Text("Search") },
+                                placeholder = { Text("Brand, material, color...") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(
+                                    onSearch = { 
+                                        if (searchQuery.isNotBlank()) {
+                                            viewModel.searchFilaments(searchQuery)
+                                            focusManager.clearFocus()
+                                        }
+                                    }
+                                ),
+                                leadingIcon = {
+                                    Icon(Icons.Default.Search, contentDescription = null)
+                                },
+                                trailingIcon = {
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { viewModel.updateSearchQuery("") }) {
+                                            Icon(Icons.Default.Close, contentDescription = "Clear")
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
 
-                val displayProfiles = remember(currentSection, allProfiles, favoriteProfiles, selectedBrand, selectedMaterial) {
+                val displayProfiles = remember(currentSection, allProfiles, favoriteProfiles, selectedBrands, selectedMaterials) {
                     when (currentSection) {
                         Section.HOME -> {
                             allProfiles.filter { profile ->
-                                (selectedBrand == null || profile.brand == selectedBrand) &&
-                                (selectedMaterial == null || profile.material == selectedMaterial)
+                                (selectedBrands.isEmpty() || selectedBrands.contains(profile.brand)) &&
+                                (selectedMaterials.isEmpty() || selectedMaterials.contains(profile.material))
                             }
                         }
                         Section.FAVORITES -> favoriteProfiles
@@ -415,20 +377,19 @@ fun SpoolSyncApp(
     }
 
     if (showFiltersDialog) {
-        FiltersDialog(
+        FiltersDialogMultiSelect(
             brands = availableBrands,
             materials = availableMaterials,
-            selectedBrand = selectedBrand,
-            selectedMaterial = selectedMaterial,
-            onBrandSelected = { 
-                viewModel.setBrandFilter(it)
-                if (it != null) viewModel.loadAllFilaments()
-            },
-            onMaterialSelected = { 
-                viewModel.setMaterialFilter(it)
-                if (it != null) viewModel.loadAllFilaments()
-            },
-            onDismiss = { showFiltersDialog = false }
+            selectedBrands = selectedBrands,
+            selectedMaterials = selectedMaterials,
+            onBrandToggle = { viewModel.toggleBrandFilter(it) },
+            onMaterialToggle = { viewModel.toggleMaterialFilter(it) },
+            onClearBrands = { viewModel.clearBrandFilters() },
+            onClearMaterials = { viewModel.clearMaterialFilters() },
+            onDismiss = { 
+                showFiltersDialog = false
+                viewModel.loadAllFilaments()
+            }
         )
     }
 }
