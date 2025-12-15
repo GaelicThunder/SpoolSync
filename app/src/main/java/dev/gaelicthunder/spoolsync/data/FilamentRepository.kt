@@ -198,7 +198,7 @@ class FilamentRepository(
     }
 
     suspend fun toggleFavorite(id: Long, currentState: Boolean) = withContext(Dispatchers.IO) {
-        profileDao.update(profileDao.getById(id).copy(isFavorite = !currentState))
+        profileDao.updateFavorite(id, !currentState)
     }
 
     suspend fun deleteProfile(profile: FilamentProfile) = withContext(Dispatchers.IO) {
