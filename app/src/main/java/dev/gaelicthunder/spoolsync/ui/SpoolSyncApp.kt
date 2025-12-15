@@ -1,9 +1,12 @@
 package dev.gaelicthunder.spoolsync.ui
 
 import android.content.Intent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -14,13 +17,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.gaelicthunder.spoolsync.data.FilamentProfile
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SpoolSyncApp(viewModel: SpoolSyncViewModel = viewModel()) {
+fun SpoolSyncApp(
+    viewModel: SpoolSyncViewModel,
+    onFilamentClick: (Long) -> Unit
+) {
     val allProfiles by viewModel.allProfiles.collectAsState()
     val favoriteProfiles by viewModel.favoriteProfiles.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -32,21 +38,6 @@ fun SpoolSyncApp(viewModel: SpoolSyncViewModel = viewModel()) {
     var showSettingsDialog by remember { mutableStateOf(false) }
 
     Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("SpoolSync") },
-                actions = {
-                    Text(
-                        text = connectionStatus,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
-                    IconButton(onClick = { showSettingsDialog = true }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                }
-            )
-        },
         floatingActionButton = {
             FloatingActionButton(onClick = { showCreateDialog = true }) {
                 Icon(Icons.Default.Add, contentDescription = "Create custom")
@@ -61,12 +52,41 @@ fun SpoolSyncApp(viewModel: SpoolSyncViewModel = viewModel()) {
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "SpoolSync",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = connectionStatus,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                    IconButton(onClick = { showSettingsDialog = true }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { viewModel.updateSearchQuery(it) },
                 label = { Text("Search SpoolmanDB") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = { viewModel.searchFilaments(searchQuery) }
+                ),
                 trailingIcon = {
                     IconButton(onClick = { viewModel.searchFilaments(searchQuery) }) {
                         Icon(Icons.Default.Search, contentDescription = "Search")
@@ -117,6 +137,7 @@ fun SpoolSyncApp(viewModel: SpoolSyncViewModel = viewModel()) {
                         items(favoriteProfiles, key = { it.id }) { profile ->
                             FilamentCard(
                                 profile = profile,
+                                onClick = { onFilamentClick(profile.id) },
                                 onToggleFavorite = { viewModel.toggleFavorite(profile) },
                                 onShare = {
                                     val json = viewModel.exportProfile(profile)
@@ -151,6 +172,7 @@ fun SpoolSyncApp(viewModel: SpoolSyncViewModel = viewModel()) {
                         items(nonFavorites, key = { it.id }) { profile ->
                             FilamentCard(
                                 profile = profile,
+                                onClick = { onFilamentClick(profile.id) },
                                 onToggleFavorite = { viewModel.toggleFavorite(profile) },
                                 onShare = {
                                     val json = viewModel.exportProfile(profile)
@@ -199,12 +221,15 @@ fun SpoolSyncApp(viewModel: SpoolSyncViewModel = viewModel()) {
 @Composable
 fun FilamentCard(
     profile: FilamentProfile,
+    onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
     onShare: () -> Unit,
     onDelete: (() -> Unit)?
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
@@ -281,202 +306,4 @@ fun FilamentCard(
             }
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun CreateFilamentDialog(
-    brands: List<String>,
-    onDismiss: () -> Unit,
-    onCreate: (String, String, String, String?, Int?, Int?, Int?) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var brand by remember { mutableStateOf("") }
-    var showBrandDropdown by remember { mutableStateOf(false) }
-    var material by remember { mutableStateOf("PLA") }
-    var colorHex by remember { mutableStateOf("#FFFFFF") }
-    var minTemp by remember { mutableStateOf("200") }
-    var maxTemp by remember { mutableStateOf("220") }
-    var bedTemp by remember { mutableStateOf("60") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Create Custom Filament") },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                ExposedDropdownMenuBox(
-                    expanded = showBrandDropdown,
-                    onExpandedChange = { showBrandDropdown = !showBrandDropdown }
-                ) {
-                    OutlinedTextField(
-                        value = brand,
-                        onValueChange = { brand = it },
-                        label = { Text("Brand") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(),
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = showBrandDropdown)
-                        }
-                    )
-                    
-                    if (brands.isNotEmpty()) {
-                        ExposedDropdownMenu(
-                            expanded = showBrandDropdown,
-                            onDismissRequest = { showBrandDropdown = false }
-                        ) {
-                            brands.take(50).forEach { brandName ->
-                                DropdownMenuItem(
-                                    text = { Text(brandName) },
-                                    onClick = {
-                                        brand = brandName
-                                        showBrandDropdown = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = material,
-                    onValueChange = { material = it },
-                    label = { Text("Material") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = colorHex,
-                    onValueChange = { colorHex = it },
-                    label = { Text("Color Hex") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = minTemp,
-                        onValueChange = { minTemp = it },
-                        label = { Text("Min °C") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    OutlinedTextField(
-                        value = maxTemp,
-                        onValueChange = { maxTemp = it },
-                        label = { Text("Max °C") },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = bedTemp,
-                    onValueChange = { bedTemp = it },
-                    label = { Text("Bed °C") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onCreate(
-                        name,
-                        brand,
-                        material,
-                        colorHex,
-                        minTemp.toIntOrNull(),
-                        maxTemp.toIntOrNull(),
-                        bedTemp.toIntOrNull()
-                    )
-                },
-                enabled = name.isNotBlank() && brand.isNotBlank()
-            ) {
-                Text("Create")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-
-@Composable
-fun SettingsDialog(
-    connectionStatus: String,
-    onDismiss: () -> Unit,
-    onConnect: (String, String, String) -> Unit,
-    onDisconnect: () -> Unit
-) {
-    var printerIp by remember { mutableStateOf("") }
-    var serialNumber by remember { mutableStateOf("") }
-    var accessCode by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Printer Settings") },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "Status: $connectionStatus",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-                
-                OutlinedTextField(
-                    value = printerIp,
-                    onValueChange = { printerIp = it },
-                    label = { Text("Printer IP") },
-                    placeholder = { Text("192.168.1.100") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = serialNumber,
-                    onValueChange = { serialNumber = it },
-                    label = { Text("Serial Number") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = accessCode,
-                    onValueChange = { accessCode = it },
-                    label = { Text("Access Code") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Row {
-                if (connectionStatus != "Disconnected") {
-                    TextButton(onClick = onDisconnect) {
-                        Text("Disconnect")
-                    }
-                }
-                TextButton(
-                    onClick = {
-                        onConnect(printerIp, serialNumber, accessCode)
-                    },
-                    enabled = printerIp.isNotBlank() && serialNumber.isNotBlank() && accessCode.isNotBlank()
-                ) {
-                    Text("Connect")
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
-            }
-        }
-    )
 }
