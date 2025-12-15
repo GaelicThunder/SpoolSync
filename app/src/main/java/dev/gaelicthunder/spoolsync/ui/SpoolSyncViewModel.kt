@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.ActivityResult
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
@@ -95,14 +94,42 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun loadBrands() {
         viewModelScope.launch {
-            _availableBrands.value = repository.getBrands()
+            try {
+                val brands = repository.getBrands()
+                if (brands.isNotEmpty()) {
+                    _availableBrands.value = brands
+                } else {
+                    val api = ApiClient.spoolmanDbApi
+                    val brandsFromApi = api.getBrands()
+                    _availableBrands.value = brandsFromApi.map { it.name }.sorted()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _availableBrands.value = getDefaultBrands()
+            }
         }
     }
 
     private fun loadMaterials() {
         viewModelScope.launch {
-            _availableMaterials.value = listOf("PLA", "PETG", "ABS", "TPU", "NYLON", "ASA", "PC", "PAHT-CF")
+            _availableMaterials.value = getDefaultMaterials()
         }
+    }
+
+    private fun getDefaultBrands(): List<String> {
+        return listOf(
+            "3D-Fuel", "3DXTech", "Bambu Lab", "Colorfabb", "eSUN",
+            "Fiberlogy", "Fillamentum", "FormFutura", "Hatchbox", "MatterHackers",
+            "Overture", "PolyLite", "PolyMaker", "Prusament", "Push Plastic",
+            "Sunlu", "Ultimaker"
+        ).sorted()
+    }
+
+    private fun getDefaultMaterials(): List<String> {
+        return listOf(
+            "PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "TPE",
+            "NYLON", "PC", "PAHT-CF", "PVA", "HIPS", "PP"
+        )
     }
 
     fun updateSearchQuery(query: String) {
@@ -128,6 +155,7 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun searchFilaments(query: String) {
+        if (query.isBlank()) return
         viewModelScope.launch {
             try {
                 repository.searchAndCache(query)
@@ -141,18 +169,30 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             try {
                 val api = ApiClient.filamentColorsApi
-                val response = api.getSwatches(page = 1)
-                _filamentColorsSwatches.value = response.results.map {
-                    FilamentColorResult(
-                        name = it.colorName,
-                        brand = it.manufacturer.name,
-                        material = it.filamentType.name,
-                        hexColor = "#${it.hexColor}",
-                        imageFront = it.imageFront,
-                        imageBack = it.imageBack,
-                        amazonLink = it.amazonLink
-                    )
+                val allSwatches = mutableListOf<FilamentColorResult>()
+                
+                for (page in 1..5) {
+                    try {
+                        val response = api.getSwatches(page = page)
+                        if (response.results.isEmpty()) break
+                        
+                        allSwatches.addAll(response.results.map {
+                            FilamentColorResult(
+                                name = it.colorName,
+                                brand = it.manufacturer.name,
+                                material = it.filamentType.name,
+                                hexColor = "#${it.hexColor}",
+                                imageFront = it.imageFront,
+                                imageBack = it.imageBack,
+                                amazonLink = it.amazonLink
+                            )
+                        })
+                    } catch (e: Exception) {
+                        break
+                    }
                 }
+                
+                _filamentColorsSwatches.value = allSwatches
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -199,7 +239,12 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun toggleFavorite(profile: FilamentProfile) {
         viewModelScope.launch {
-            repository.toggleFavorite(profile.id, profile.isFavorite)
+            val currentFavorites = favoriteProfiles.value
+            val isDuplicate = currentFavorites.any { it.id == profile.id }
+            
+            if (!isDuplicate || profile.isFavorite) {
+                repository.toggleFavorite(profile.id, profile.isFavorite)
+            }
         }
     }
 
