@@ -41,6 +41,9 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
     private val _filamentColorsSwatches = MutableStateFlow<List<FilamentColorResult>>(emptyList())
     val filamentColorsSwatches = _filamentColorsSwatches.asStateFlow()
 
+    private val _userProfile = MutableStateFlow<UserProfile?>(null)
+    val userProfile = _userProfile.asStateFlow()
+
     val allProfiles: StateFlow<List<FilamentProfile>>
     val favoriteProfiles: StateFlow<List<FilamentProfile>>
 
@@ -88,6 +91,16 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
         _selectedMaterialFilter.value = material
     }
 
+    fun loadAllFilaments() {
+        viewModelScope.launch {
+            try {
+                repository.loadAllFromSpoolmanDB()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     fun searchFilaments(query: String) {
         viewModelScope.launch {
             try {
@@ -110,12 +123,26 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
                         material = it.filamentType.name,
                         hexColor = "#${it.hexColor}",
                         imageFront = it.imageFront,
+                        imageBack = it.imageBack,
                         amazonLink = it.amazonLink
                     )
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    suspend fun getFilamentColorImage(brand: String, name: String): String? {
+        return try {
+            val api = ApiClient.filamentColorsApi
+            val response = api.getSwatches(page = 1, manufacturer = brand)
+            response.results.find { 
+                it.colorName.equals(name, ignoreCase = true) 
+            }?.imageFront?.let { "https://filamentcolors.xyz$it" }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
     }
 
@@ -165,6 +192,25 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
         return QRCodeGenerator.generateQRCode(json)
     }
 
+    fun signInWithGoogle() {
+        viewModelScope.launch {
+            _userProfile.value = UserProfile(
+                displayName = "Demo User",
+                email = "demo@spoolsync.app",
+                photoUrl = "https://via.placeholder.com/150"
+            )
+        }
+    }
+
+    fun signOut() {
+        _userProfile.value = null
+    }
+
+    fun backupToDrive() {
+        viewModelScope.launch {
+        }
+    }
+
     fun connectPrinter(ip: String, serial: String, accessCode: String) {
         _connectionStatus.value = "Connecting..."
         mqttClient = BambuMqttClient(getApplication(), ip, serial, accessCode)
@@ -196,5 +242,12 @@ data class FilamentColorResult(
     val material: String,
     val hexColor: String,
     val imageFront: String?,
+    val imageBack: String?,
     val amazonLink: String?
+)
+
+data class UserProfile(
+    val displayName: String,
+    val email: String,
+    val photoUrl: String
 )
