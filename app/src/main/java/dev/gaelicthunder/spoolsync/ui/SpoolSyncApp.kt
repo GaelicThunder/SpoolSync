@@ -25,13 +25,15 @@ fun SpoolSyncApp(viewModel: SpoolSyncViewModel = viewModel()) {
     val favoriteProfiles by viewModel.favoriteProfiles.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val connectionStatus by viewModel.connectionStatus.collectAsState()
+    val availableBrands by viewModel.availableBrands.collectAsState()
     val context = LocalContext.current
 
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text("SpoolSync") },
                 actions = {
                     Text(
@@ -39,7 +41,7 @@ fun SpoolSyncApp(viewModel: SpoolSyncViewModel = viewModel()) {
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(horizontal = 8.dp)
                     )
-                    IconButton(onClick = { /* TODO: Settings */ }) {
+                    IconButton(onClick = { showSettingsDialog = true }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
@@ -171,10 +173,24 @@ fun SpoolSyncApp(viewModel: SpoolSyncViewModel = viewModel()) {
 
     if (showCreateDialog) {
         CreateFilamentDialog(
+            brands = availableBrands,
             onDismiss = { showCreateDialog = false },
             onCreate = { name, brand, material, color, minTemp, maxTemp, bedTemp ->
                 viewModel.createCustom(name, brand, material, color, minTemp, maxTemp, bedTemp)
                 showCreateDialog = false
+            }
+        )
+    }
+
+    if (showSettingsDialog) {
+        SettingsDialog(
+            connectionStatus = connectionStatus,
+            onDismiss = { showSettingsDialog = false },
+            onConnect = { ip, serial, code ->
+                viewModel.connectPrinter(ip, serial, code)
+            },
+            onDisconnect = {
+                viewModel.disconnectPrinter()
             }
         )
     }
@@ -267,13 +283,16 @@ fun FilamentCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateFilamentDialog(
+    brands: List<String>,
     onDismiss: () -> Unit,
     onCreate: (String, String, String, String?, Int?, Int?, Int?) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var brand by remember { mutableStateOf("") }
+    var showBrandDropdown by remember { mutableStateOf(false) }
     var material by remember { mutableStateOf("PLA") }
     var colorHex by remember { mutableStateOf("#FFFFFF") }
     var minTemp by remember { mutableStateOf("200") }
@@ -292,12 +311,41 @@ fun CreateFilamentDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = brand,
-                    onValueChange = { brand = it },
-                    label = { Text("Brand") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                
+                ExposedDropdownMenuBox(
+                    expanded = showBrandDropdown,
+                    onExpandedChange = { showBrandDropdown = !showBrandDropdown }
+                ) {
+                    OutlinedTextField(
+                        value = brand,
+                        onValueChange = { brand = it },
+                        label = { Text("Brand") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = showBrandDropdown)
+                        }
+                    )
+                    
+                    if (brands.isNotEmpty()) {
+                        ExposedDropdownMenu(
+                            expanded = showBrandDropdown,
+                            onDismissRequest = { showBrandDropdown = false }
+                        ) {
+                            brands.take(50).forEach { brandName ->
+                                DropdownMenuItem(
+                                    text = { Text(brandName) },
+                                    onClick = {
+                                        brand = brandName
+                                        showBrandDropdown = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = material,
@@ -358,6 +406,76 @@ fun CreateFilamentDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun SettingsDialog(
+    connectionStatus: String,
+    onDismiss: () -> Unit,
+    onConnect: (String, String, String) -> Unit,
+    onDisconnect: () -> Unit
+) {
+    var printerIp by remember { mutableStateOf("") }
+    var serialNumber by remember { mutableStateOf("") }
+    var accessCode by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Printer Settings") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Status: $connectionStatus",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                OutlinedTextField(
+                    value = printerIp,
+                    onValueChange = { printerIp = it },
+                    label = { Text("Printer IP") },
+                    placeholder = { Text("192.168.1.100") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = serialNumber,
+                    onValueChange = { serialNumber = it },
+                    label = { Text("Serial Number") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = accessCode,
+                    onValueChange = { accessCode = it },
+                    label = { Text("Access Code") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Row {
+                if (connectionStatus != "Disconnected") {
+                    TextButton(onClick = onDisconnect) {
+                        Text("Disconnect")
+                    }
+                }
+                TextButton(
+                    onClick = {
+                        onConnect(printerIp, serialNumber, accessCode)
+                    },
+                    enabled = printerIp.isNotBlank() && serialNumber.isNotBlank() && accessCode.isNotBlank()
+                ) {
+                    Text("Connect")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
             }
         }
     )
