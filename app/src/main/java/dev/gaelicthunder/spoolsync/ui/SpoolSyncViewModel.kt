@@ -40,11 +40,11 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
     private val _availableMaterials = MutableStateFlow<List<String>>(emptyList())
     val availableMaterials = _availableMaterials.asStateFlow()
 
-    private val _selectedBrandFilter = MutableStateFlow<String?>(null)
-    val selectedBrandFilter = _selectedBrandFilter.asStateFlow()
+    private val _selectedBrands = MutableStateFlow<Set<String>>(emptySet())
+    val selectedBrands = _selectedBrands.asStateFlow()
 
-    private val _selectedMaterialFilter = MutableStateFlow<String?>(null)
-    val selectedMaterialFilter = _selectedMaterialFilter.asStateFlow()
+    private val _selectedMaterials = MutableStateFlow<Set<String>>(emptySet())
+    val selectedMaterials = _selectedMaterials.asStateFlow()
 
     private val _filamentColorsSwatches = MutableStateFlow<List<FilamentColorResult>>(emptyList())
     val filamentColorsSwatches = _filamentColorsSwatches.asStateFlow()
@@ -74,8 +74,7 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
             initialValue = emptyList()
         )
 
-        loadBrands()
-        loadMaterials()
+        loadBrandsAndMaterials()
     }
 
     fun setAuthManager(manager: GoogleAuthManager, launcher: ActivityResultLauncher<android.content.Intent>) {
@@ -92,57 +91,49 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
         driveManager = DriveManager(context, account)
     }
 
-    private fun loadBrands() {
+    private fun loadBrandsAndMaterials() {
         viewModelScope.launch {
             try {
-                val brands = repository.getBrands()
-                if (brands.isNotEmpty()) {
-                    _availableBrands.value = brands
-                } else {
-                    val api = ApiClient.spoolmanDbApi
-                    val brandsFromApi = api.getBrands()
-                    _availableBrands.value = brandsFromApi.map { it.name }.sorted()
-                }
+                val api = ApiClient.spoolmanDbApi
+                val filaments = api.getFilaments()
+                
+                val brands = filaments.mapNotNull { it.brand?.name }.distinct().sorted()
+                val materials = filaments.mapNotNull { it.material }.distinct().sorted()
+                
+                _availableBrands.value = brands
+                _availableMaterials.value = materials
             } catch (e: Exception) {
                 e.printStackTrace()
-                _availableBrands.value = getDefaultBrands()
             }
         }
-    }
-
-    private fun loadMaterials() {
-        viewModelScope.launch {
-            _availableMaterials.value = getDefaultMaterials()
-        }
-    }
-
-    private fun getDefaultBrands(): List<String> {
-        return listOf(
-            "3D-Fuel", "3DXTech", "Anycubic", "Bambu Lab", "Colorfabb", 
-            "Creality", "Elegoo", "eSUN", "Fiberlogy", "Fillamentum", 
-            "FormFutura", "Geeetech", "Hatchbox", "MatterHackers", "Overture", 
-            "PolyLite", "PolyMaker", "Prusament", "Push Plastic", "Reprapper",
-            "Sunlu", "Ultimaker"
-        ).sorted()
-    }
-
-    private fun getDefaultMaterials(): List<String> {
-        return listOf(
-            "PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "TPE",
-            "NYLON", "PC", "PAHT-CF", "PVA", "HIPS", "PP"
-        )
     }
 
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
     }
 
-    fun setBrandFilter(brand: String?) {
-        _selectedBrandFilter.value = brand
+    fun toggleBrandFilter(brand: String) {
+        _selectedBrands.value = if (_selectedBrands.value.contains(brand)) {
+            _selectedBrands.value - brand
+        } else {
+            _selectedBrands.value + brand
+        }
     }
 
-    fun setMaterialFilter(material: String?) {
-        _selectedMaterialFilter.value = material
+    fun toggleMaterialFilter(material: String) {
+        _selectedMaterials.value = if (_selectedMaterials.value.contains(material)) {
+            _selectedMaterials.value - material
+        } else {
+            _selectedMaterials.value + material
+        }
+    }
+
+    fun clearBrandFilters() {
+        _selectedBrands.value = emptySet()
+    }
+
+    fun clearMaterialFilters() {
+        _selectedMaterials.value = emptySet()
     }
 
     fun loadAllFilaments() {
