@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit
 object ApiClient {
 
     private const val SPOOLMAN_DB_BASE = "https://donkie.github.io"
+    private const val FILAMENT_COLORS_BASE = "https://filamentcolors.xyz"
 
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -23,5 +24,14 @@ object ApiClient {
             .addConverterFactory(MoshiConverterFactory.create())
             .build()
             .create(SpoolmanDbApi::class.java)
+    }
+
+    val filamentColorsApi: FilamentColorsApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(FILAMENT_COLORS_BASE)
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create())
+            .build()
+            .create(FilamentColorsApi::class.java)
     }
 }
