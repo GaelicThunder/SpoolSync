@@ -3,6 +3,7 @@ package dev.gaelicthunder.spoolsync.ui
 import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
+import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,6 +13,7 @@ import dev.gaelicthunder.spoolsync.auth.GoogleAuthManager
 import dev.gaelicthunder.spoolsync.data.AppDatabase
 import dev.gaelicthunder.spoolsync.data.FilamentProfile
 import dev.gaelicthunder.spoolsync.data.FilamentRepository
+import dev.gaelicthunder.spoolsync.data.cache.CachedSpoolmanFilament
 import dev.gaelicthunder.spoolsync.data.remote.ApiClient
 import dev.gaelicthunder.spoolsync.drive.DriveManager
 import dev.gaelicthunder.spoolsync.service.BambuMqttClient
@@ -20,6 +22,10 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class SpoolSyncViewModel(application: Application) : AndroidViewModel(application) {
+    companion object {
+        private const val TAG = "SpoolSyncViewModel"
+        private const val COLOR_PAGE_SIZE = 10
+    }
 
     private val repository: FilamentRepository
     private val gson = Gson()
@@ -46,8 +52,18 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
     private val _selectedMaterials = MutableStateFlow<Set<String>>(emptySet())
     val selectedMaterials = _selectedMaterials.asStateFlow()
 
+    private val _searchResults = MutableStateFlow<List<CachedSpoolmanFilament>>(emptyList())
+    val searchResults = _searchResults.asStateFlow()
+
     private val _filamentColorsSwatches = MutableStateFlow<List<FilamentColorResult>>(emptyList())
     val filamentColorsSwatches = _filamentColorsSwatches.asStateFlow()
+
+    private val _colorBrowserPage = MutableStateFlow(0)
+    private val _hasMoreColors = MutableStateFlow(true)
+    val hasMoreColors = _hasMoreColors.asStateFlow()
+
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing = _isSyncing.asStateFlow()
 
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
     val userProfile = _userProfile.asStateFlow()
@@ -60,7 +76,11 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         val db = AppDatabase.getInstance(application)
-        repository = FilamentRepository(db.filamentProfileDao())
+        repository = FilamentRepository(
+            db.filamentProfileDao(),
+            db.cachedFilamentDao(),
+            db.cacheMetadataDao()
+        )
 
         allProfiles = repository.allProfiles.stateIn(
             scope = viewModelScope,
@@ -74,42 +94,45 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
             initialValue = emptyList()
         )
 
-        loadBrandsAndMaterials()
+        syncAndLoadData()
     }
 
-    fun setAuthManager(manager: GoogleAuthManager, launcher: ActivityResultLauncher<android.content.Intent>) {
-        authManager = manager
-        signInLauncher = launcher
-    }
-
-    fun onGoogleSignInSuccess(context: Context, account: GoogleSignInAccount) {
-        _userProfile.value = UserProfile(
-            displayName = account.displayName ?: "User",
-            email = account.email ?: "",
-            photoUrl = account.photoUrl?.toString() ?: ""
-        )
-        driveManager = DriveManager(context, account)
+    private fun syncAndLoadData() {
+        viewModelScope.launch {
+            _isSyncing.value = true
+            try {
+                val synced = repository.syncSpoolmanDbIfNeeded()
+                if (synced) {
+                    Log.d(TAG, "SpoolmanDB synced successfully")
+                }
+                loadBrandsAndMaterials()
+            } catch (e: Exception) {
+                Log.e(TAG, "Sync failed", e)
+            } finally {
+                _isSyncing.value = false
+            }
+        }
     }
 
     private fun loadBrandsAndMaterials() {
         viewModelScope.launch {
             try {
-                val api = ApiClient.spoolmanDbApi
-                val filaments = api.getFilaments()
-                
-                val brands = filaments.mapNotNull { it.brand?.name }.distinct().sorted()
-                val materials = filaments.mapNotNull { it.material }.distinct().sorted()
+                val brands = repository.getBrandsFromCache()
+                val materials = repository.getMaterialsFromCache()
                 
                 _availableBrands.value = brands
                 _availableMaterials.value = materials
+                
+                Log.d(TAG, "Loaded ${brands.size} brands and ${materials.size} materials")
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Failed to load brands/materials", e)
             }
         }
     }
 
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
+        performSearch()
     }
 
     fun toggleBrandFilter(brand: String) {
@@ -136,72 +159,100 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
         _selectedMaterials.value = emptySet()
     }
 
-    fun loadAllFilaments() {
+    fun clearAllFilters() {
+        _selectedBrands.value = emptySet()
+        _selectedMaterials.value = emptySet()
+        _searchQuery.value = ""
+        performSearch()
+    }
+
+    fun applyFilters() {
+        performSearch()
+    }
+
+    private fun performSearch() {
         viewModelScope.launch {
             try {
-                repository.loadAllFromSpoolmanDB()
+                val results = repository.searchCachedFilaments(
+                    query = _searchQuery.value,
+                    brands = _selectedBrands.value.toList(),
+                    materials = _selectedMaterials.value.toList()
+                )
+                _searchResults.value = results
+                Log.d(TAG, "Search returned ${results.size} results")
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Search failed", e)
             }
         }
     }
 
-    fun searchFilaments(query: String) {
-        if (query.isBlank()) return
+    fun importFilament(cached: CachedSpoolmanFilament) {
         viewModelScope.launch {
             try {
-                repository.searchAndCache(query)
+                repository.importFromCache(cached)
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Import failed", e)
             }
         }
     }
 
-    fun searchFilamentColors(query: String = "") {
+    fun loadNextColorPage() {
         viewModelScope.launch {
             try {
+                val page = _colorBrowserPage.value + 1
                 val api = ApiClient.filamentColorsApi
-                val allSwatches = mutableListOf<FilamentColorResult>()
+                val response = api.getSwatches(page = page)
                 
-                for (page in 1..5) {
-                    try {
-                        val response = api.getSwatches(page = page)
-                        if (response.results.isEmpty()) break
-                        
-                        allSwatches.addAll(response.results.map {
-                            FilamentColorResult(
-                                name = it.colorName,
-                                brand = it.manufacturer.name,
-                                material = it.filamentType.name,
-                                hexColor = "#${it.hexColor}",
-                                imageFront = it.imageFront,
-                                imageBack = it.imageBack,
-                                amazonLink = it.amazonLink
-                            )
-                        })
-                    } catch (e: Exception) {
-                        break
-                    }
+                if (response.results.isEmpty()) {
+                    _hasMoreColors.value = false
+                    return@launch
                 }
                 
-                _filamentColorsSwatches.value = allSwatches
+                val newSwatches = response.results.map {
+                    FilamentColorResult(
+                        name = it.colorName,
+                        brand = it.manufacturer.name,
+                        material = it.filamentType.name,
+                        hexColor = "#${it.hexColor}",
+                        imageFront = it.imageFront?.let { "https://filamentcolors.xyz$it" },
+                        imageBack = it.imageBack?.let { "https://filamentcolors.xyz$it" },
+                        amazonLink = it.amazonLink
+                    )
+                }
+                
+                _filamentColorsSwatches.value += newSwatches
+                _colorBrowserPage.value = page
+                
+                if (response.results.size < COLOR_PAGE_SIZE) {
+                    _hasMoreColors.value = false
+                }
+                
+                Log.d(TAG, "Loaded page $page with ${newSwatches.size} colors")
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Failed to load color page", e)
+                _hasMoreColors.value = false
             }
         }
     }
 
-    suspend fun getFilamentColorImage(brand: String, name: String): String? {
-        return try {
-            val api = ApiClient.filamentColorsApi
-            val response = api.getSwatches(page = 1, manufacturer = brand)
-            response.results.find { 
-                it.colorName.equals(name, ignoreCase = true) 
-            }?.imageFront?.let { "https://filamentcolors.xyz$it" }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
+    fun resetColorBrowser() {
+        _filamentColorsSwatches.value = emptyList()
+        _colorBrowserPage.value = 0
+        _hasMoreColors.value = true
+    }
+
+    fun setAuthManager(manager: GoogleAuthManager, launcher: ActivityResultLauncher<android.content.Intent>) {
+        authManager = manager
+        signInLauncher = launcher
+    }
+
+    fun onGoogleSignInSuccess(context: Context, account: GoogleSignInAccount) {
+        _userProfile.value = UserProfile(
+            displayName = account.displayName ?: "User",
+            email = account.email ?: "",
+            photoUrl = account.photoUrl?.toString() ?: ""
+        )
+        driveManager = DriveManager(context, account)
     }
 
     fun createCustom(
