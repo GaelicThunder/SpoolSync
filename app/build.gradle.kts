@@ -96,7 +96,7 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.5.0")
 
     implementation("com.google.android.gms:play-services-auth:20.7.0")
-    implementation("com.google.apis:google-api-services-drive:v3-rev20231212-2.0.0")
+    implementation("com.google.apis:google-api-services-drive:v3-rev20240509-2.0.0")
     implementation("com.google.api-client:google-api-client-android:2.2.0")
 
     testImplementation("junit:junit:4.13.2")
