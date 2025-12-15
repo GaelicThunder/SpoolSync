@@ -9,6 +9,7 @@ import dev.gaelicthunder.spoolsync.data.cache.CachedFilamentDao
 import dev.gaelicthunder.spoolsync.data.cache.CachedSpoolmanFilament
 import dev.gaelicthunder.spoolsync.data.cache.CacheMetadata
 import dev.gaelicthunder.spoolsync.data.cache.CacheMetadataDao
+import dev.gaelicthunder.spoolsync.data.local.FilamentProfileDao
 import dev.gaelicthunder.spoolsync.data.remote.ApiClient
 import dev.gaelicthunder.spoolsync.data.remote.SpoolmanFilament
 import dev.gaelicthunder.spoolsync.data.remote.SpoolmanMaterial
@@ -36,10 +37,10 @@ class FilamentRepository(
 
     suspend fun syncSpoolmanDbIfNeeded(): Boolean = withContext(Dispatchers.IO) {
         try {
-            val metadata = cacheMetadataDao.getMetadata(CACHE_KEY_SPOOLMAN)
+            val metadata = cacheMetadataDao.get(CACHE_KEY_SPOOLMAN)
             val now = System.currentTimeMillis()
             
-            if (metadata == null || (now - metadata.lastUpdated) > CACHE_EXPIRY_MS) {
+            if (metadata == null || (now - metadata.lastSync) > CACHE_EXPIRY_MS) {
                 Log.d(TAG, "Syncing SpoolmanDB...")
                 return@withContext syncSpoolmanDb()
             } else {
@@ -47,7 +48,7 @@ class FilamentRepository(
                 return@withContext false
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Sync failed", e)
+            Log.e(TAG, "Sync check failed", e)
             return@withContext false
         }
     }
@@ -102,24 +103,23 @@ class FilamentRepository(
             
             Log.d(TAG, "Downloaded ${materials.size} materials")
             
-            val materialMap = materials.associateBy { it.id }
+            val materialMap = materials.associateBy { it.material }
             
             cachedFilamentDao.clearAll()
             
             val cachedFilaments = filaments.map { filament ->
-                val material = materialMap[filament.material_id]
                 CachedSpoolmanFilament(
                     id = filament.id,
                     name = filament.name,
-                    manufacturer = filament.manufacturer ?: "Unknown",
-                    material = material?.name ?: "Unknown",
+                    manufacturer = filament.manufacturer,
+                    material = filament.material,
                     density = filament.density,
+                    weight = filament.weight,
+                    spoolWeight = filament.spoolWeight,
                     diameter = filament.diameter,
-                    extruderTemp = filament.extruder_temp,
-                    bedTemp = filament.bed_temp,
-                    colorHex = filament.color_hex,
-                    articleNumber = filament.article_number,
-                    settings = filament.settings_extruder_temp?.let { "extruder:$it" } ?: ""
+                    extruderTemp = filament.extruderTemp,
+                    bedTemp = filament.bedTemp,
+                    colorHex = filament.colorHex
                 )
             }
             
@@ -128,7 +128,7 @@ class FilamentRepository(
             cacheMetadataDao.insert(
                 CacheMetadata(
                     key = CACHE_KEY_SPOOLMAN,
-                    lastUpdated = System.currentTimeMillis()
+                    lastSync = System.currentTimeMillis()
                 )
             )
             
@@ -164,7 +164,11 @@ class FilamentRepository(
         materials: List<String>
     ): List<CachedSpoolmanFilament> = withContext(Dispatchers.IO) {
         try {
-            cachedFilamentDao.searchFilaments(query, brands, materials)
+            cachedFilamentDao.search(
+                query,
+                if (brands.isEmpty()) null else brands,
+                if (materials.isEmpty()) null else materials
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Search failed", e)
             emptyList()
@@ -194,7 +198,7 @@ class FilamentRepository(
     }
 
     suspend fun toggleFavorite(id: Long, currentState: Boolean) = withContext(Dispatchers.IO) {
-        profileDao.updateFavorite(id, !currentState)
+        profileDao.update(profileDao.getById(id).copy(isFavorite = !currentState))
     }
 
     suspend fun deleteProfile(profile: FilamentProfile) = withContext(Dispatchers.IO) {
