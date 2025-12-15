@@ -14,7 +14,18 @@ class FilamentRepository(private val dao: FilamentProfileDao) {
         try {
             val api = ApiClient.spoolmanDbApi
             val remote = api.getFilaments()
-            remote.map { it.toLocalProfile() }
+            remote.mapNotNull { it.toLocalProfile() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    suspend fun getBrands(): List<String> = withContext(Dispatchers.IO) {
+        try {
+            val api = ApiClient.spoolmanDbApi
+            val remote = api.getFilaments()
+            remote.map { it.manufacturer }.distinct().sorted()
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()
@@ -49,14 +60,15 @@ class FilamentRepository(private val dao: FilamentProfileDao) {
     }
 }
 
-private fun SpoolmanFilament.toLocalProfile(): FilamentProfile {
+private fun SpoolmanFilament.toLocalProfile(): FilamentProfile? {
+    val hexColor = colorHex?.let { "#$it" } ?: return null
     val min = extruderTemp ?: defaultTemps(material).first
     val max = (extruderTemp?.plus(10)) ?: defaultTemps(material).second
     return FilamentProfile(
         name = name,
         brand = manufacturer,
         material = material,
-        colorHex = "#${colorHex.uppercase()}",
+        colorHex = hexColor,
         minTemp = min,
         maxTemp = max,
         bedTemp = bedTemp,

@@ -19,7 +19,7 @@ data class SpoolmanFilament(
     @Json(name = "diameter") val diameter: Float,
     @Json(name = "weight") val weight: Int?,
     @Json(name = "spool_weight") val spoolWeight: Float?,
-    @Json(name = "color_hex") val colorHex: String,
+    @Json(name = "color_hex") val colorHex: String?,
     @Json(name = "color_name") val colorName: String?,
     @Json(name = "extruder_temp") val extruderTemp: Int?,
     @Json(name = "bed_temp") val bedTemp: Int?

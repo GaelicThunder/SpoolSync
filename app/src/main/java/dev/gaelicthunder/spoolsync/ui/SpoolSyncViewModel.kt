@@ -23,6 +23,9 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
     private val _searchQuery = MutableStateFlow("") 
     val searchQuery = _searchQuery.asStateFlow()
 
+    private val _availableBrands = MutableStateFlow<List<String>>(emptyList())
+    val availableBrands = _availableBrands.asStateFlow()
+
     val allProfiles: StateFlow<List<FilamentProfile>>
     val favoriteProfiles: StateFlow<List<FilamentProfile>>
 
@@ -41,6 +44,14 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+
+        loadBrands()
+    }
+
+    private fun loadBrands() {
+        viewModelScope.launch {
+            _availableBrands.value = repository.getBrands()
+        }
     }
 
     fun updateSearchQuery(query: String) {
