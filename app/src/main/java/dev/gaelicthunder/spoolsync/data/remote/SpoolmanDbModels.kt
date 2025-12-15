@@ -27,8 +27,8 @@ data class SpoolmanFilament(
             minTemp = extruderTemp,
             maxTemp = extruderTemp?.plus(10),
             bedTemp = bedTemp,
-            density = density ?: 1.24,
-            diameter = diameter ?: 1.75,
+            density = (density ?: 1.24).toFloat(),
+            diameter = (diameter ?: 1.75).toFloat(),
             vendorId = id.toString(),
             isFavorite = false,
             isCustom = false

@@ -2,7 +2,7 @@ package dev.gaelicthunder.spoolsync.drive
 
 import android.content.Context
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.google.api.client.extensions.android.http.AndroidHttp
+import com.google.api.client.http.javanet.NetHttpTransport
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
@@ -25,7 +25,7 @@ class DriveManager(private val context: Context, account: GoogleSignInAccount) {
     }
 
     private val driveService = Drive.Builder(
-        AndroidHttp.newCompatibleTransport(),
+        NetHttpTransport(),
         GsonFactory.getDefaultInstance(),
         credential
     )
