@@ -3,7 +3,6 @@ package dev.gaelicthunder.spoolsync.ui
 import android.content.Intent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -23,8 +22,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -50,6 +51,7 @@ fun SpoolSyncApp(
     val selectedMaterial by viewModel.selectedMaterialFilter.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -195,6 +197,46 @@ fun SpoolSyncApp(
         }
     ) {
         Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {},
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "Menu")
+                        }
+                    },
+                    actions = {
+                        if (connectionStatus != "Disconnected") {
+                            Badge(
+                                containerColor = if (connectionStatus == "Connected") 
+                                    MaterialTheme.colorScheme.primary 
+                                else 
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Text(
+                                    text = connectionStatus,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(horizontal = 4.dp)
+                                )
+                            }
+                        }
+                        IconButton(onClick = { showFiltersDialog = true }) {
+                            Badge(
+                                containerColor = if (selectedBrand != null || selectedMaterial != null)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    Color.Transparent
+                            ) {
+                                Icon(Icons.Default.FilterList, contentDescription = "Filters")
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+            },
             floatingActionButton = {
                 ExtendedFloatingActionButton(
                     onClick = { showCreateDialog = true },
@@ -208,63 +250,8 @@ fun SpoolSyncApp(
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    tonalElevation = 2.dp
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 4.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Icon(Icons.Default.Menu, contentDescription = "Menu")
-                            }
-                            Text(
-                                text = when (currentSection) {
-                                    Section.HOME -> "SpoolSync"
-                                    Section.FAVORITES -> "Favorites"
-                                },
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (connectionStatus != "Disconnected") {
-                                Badge(
-                                    containerColor = if (connectionStatus == "Connected") 
-                                        MaterialTheme.colorScheme.primary 
-                                    else 
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                ) {
-                                    Text(
-                                        text = connectionStatus,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        modifier = Modifier.padding(horizontal = 4.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                            }
-                            IconButton(onClick = { showFiltersDialog = true }) {
-                                Badge(
-                                    containerColor = if (selectedBrand != null || selectedMaterial != null)
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        Color.Transparent
-                                ) {
-                                    Icon(Icons.Default.FilterList, contentDescription = "Filters")
-                                }
-                            }
-                        }
-                    }
-                }
-
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     OutlinedTextField(
                         value = searchQuery,
@@ -278,6 +265,7 @@ fun SpoolSyncApp(
                             onSearch = { 
                                 if (searchQuery.isNotBlank()) {
                                     viewModel.searchFilaments(searchQuery)
+                                    focusManager.clearFocus()
                                 }
                             }
                         ),
@@ -376,7 +364,7 @@ fun SpoolSyncApp(
                                 },
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -384,7 +372,7 @@ fun SpoolSyncApp(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp, bottom = 88.dp)
                     ) {
                         items(
                             items = displayProfiles,
@@ -407,7 +395,7 @@ fun SpoolSyncApp(
                                     { viewModel.deleteProfile(profile) }
                                 } else null
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
                         }
                     }
                 }
@@ -458,7 +446,8 @@ fun FilamentCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+        ),
+        shape = MaterialTheme.shapes.large
     ) {
         Row(
             modifier = Modifier
@@ -469,13 +458,13 @@ fun FilamentCard(
             profile.colorHex?.let { hex ->
                 Surface(
                     modifier = Modifier
-                        .size(56.dp),
+                        .size(64.dp),
                     color = try {
                         Color(android.graphics.Color.parseColor(hex))
                     } catch (e: Exception) {
                         MaterialTheme.colorScheme.surfaceVariant
                     },
-                    shape = MaterialTheme.shapes.medium,
+                    shape = MaterialTheme.shapes.large,
                     tonalElevation = 4.dp,
                     shadowElevation = 2.dp
                 ) {}
@@ -491,17 +480,20 @@ fun FilamentCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "${profile.brand} · ${profile.material}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "Nozzle: ${profile.minTemp}°C-${profile.maxTemp}°C${profile.bedTemp?.let { " · Bed: ${it}°C" } ?: ""}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (profile.isCustom) {
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Custom Profile",
                         style = MaterialTheme.typography.labelSmall,
