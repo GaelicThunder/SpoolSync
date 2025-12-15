@@ -1,10 +1,8 @@
 package dev.gaelicthunder.spoolsync.data.remote
 
 import com.squareup.moshi.Json
-import com.squareup.moshi.JsonClass
 import dev.gaelicthunder.spoolsync.data.FilamentProfile
 
-@JsonClass(generateAdapter = true)
 data class SpoolmanFilament(
     val id: Int,
     val name: String,
@@ -38,7 +36,6 @@ data class SpoolmanFilament(
     }
 }
 
-@JsonClass(generateAdapter = true)
 data class BrandInfo(
     val id: Int,
     val name: String
