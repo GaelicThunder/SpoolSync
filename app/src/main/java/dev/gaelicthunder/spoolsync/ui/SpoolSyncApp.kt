@@ -63,6 +63,14 @@ fun SpoolSyncApp(
     var showFiltersDialog by remember { mutableStateOf(false) }
     var currentSection by remember { mutableStateOf(Section.HOME) }
 
+    if (isSyncing && availableBrands.isEmpty()) {
+        LoadingScreen(
+            title = "Loading SpoolmanDB",
+            subtitle = "Downloading ${availableMaterials.size} materials..."
+        )
+        return
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -229,14 +237,6 @@ fun SpoolSyncApp(
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (isSyncing) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .padding(end = 8.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                }
                                 if (connectionStatus != "Disconnected") {
                                     Badge(
                                         containerColor = if (connectionStatus == "Connected") 
