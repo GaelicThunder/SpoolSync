@@ -1,13 +1,16 @@
 package dev.gaelicthunder.spoolsync.ui
 
 import android.app.Application
+import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
 import dev.gaelicthunder.spoolsync.data.AppDatabase
 import dev.gaelicthunder.spoolsync.data.FilamentProfile
 import dev.gaelicthunder.spoolsync.data.FilamentRepository
+import dev.gaelicthunder.spoolsync.data.remote.ApiClient
 import dev.gaelicthunder.spoolsync.service.BambuMqttClient
+import dev.gaelicthunder.spoolsync.util.QRCodeGenerator
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -25,6 +28,18 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _availableBrands = MutableStateFlow<List<String>>(emptyList())
     val availableBrands = _availableBrands.asStateFlow()
+
+    private val _availableMaterials = MutableStateFlow<List<String>>(emptyList())
+    val availableMaterials = _availableMaterials.asStateFlow()
+
+    private val _selectedBrandFilter = MutableStateFlow<String?>(null)
+    val selectedBrandFilter = _selectedBrandFilter.asStateFlow()
+
+    private val _selectedMaterialFilter = MutableStateFlow<String?>(null)
+    val selectedMaterialFilter = _selectedMaterialFilter.asStateFlow()
+
+    private val _filamentColorsSwatches = MutableStateFlow<List<FilamentColorResult>>(emptyList())
+    val filamentColorsSwatches = _filamentColorsSwatches.asStateFlow()
 
     val allProfiles: StateFlow<List<FilamentProfile>>
     val favoriteProfiles: StateFlow<List<FilamentProfile>>
@@ -46,6 +61,7 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
         )
 
         loadBrands()
+        loadMaterials()
     }
 
     private fun loadBrands() {
@@ -54,14 +70,49 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    private fun loadMaterials() {
+        viewModelScope.launch {
+            _availableMaterials.value = listOf("PLA", "PETG", "ABS", "TPU", "NYLON", "ASA", "PC", "PAHT-CF")
+        }
+    }
+
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
+    }
+
+    fun setBrandFilter(brand: String?) {
+        _selectedBrandFilter.value = brand
+    }
+
+    fun setMaterialFilter(material: String?) {
+        _selectedMaterialFilter.value = material
     }
 
     fun searchFilaments(query: String) {
         viewModelScope.launch {
             try {
                 repository.searchAndCache(query)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun searchFilamentColors(query: String = "") {
+        viewModelScope.launch {
+            try {
+                val api = ApiClient.filamentColorsApi
+                val response = api.getSwatches(page = 1)
+                _filamentColorsSwatches.value = response.results.map {
+                    FilamentColorResult(
+                        name = it.colorName,
+                        brand = it.manufacturer.name,
+                        material = it.filamentType.name,
+                        hexColor = "#${it.hexColor}",
+                        imageFront = it.imageFront,
+                        amazonLink = it.amazonLink
+                    )
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -109,6 +160,11 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
         return gson.toJson(profile)
     }
 
+    fun generateQRCode(profile: FilamentProfile): Bitmap? {
+        val json = exportProfile(profile)
+        return QRCodeGenerator.generateQRCode(json)
+    }
+
     fun connectPrinter(ip: String, serial: String, accessCode: String) {
         _connectionStatus.value = "Connecting..."
         mqttClient = BambuMqttClient(getApplication(), ip, serial, accessCode)
@@ -133,3 +189,12 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
         disconnectPrinter()
     }
 }
+
+data class FilamentColorResult(
+    val name: String,
+    val brand: String,
+    val material: String,
+    val hexColor: String,
+    val imageFront: String?,
+    val amazonLink: String?
+)
