@@ -209,13 +209,22 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
                 }
                 
                 val newSwatches = response.results.map {
+                    val imageFront = it.imageFront?.let { path ->
+                        if (path.startsWith("http")) path
+                        else "https://filamentcolors.xyz$path"
+                    }
+                    val imageBack = it.imageBack?.let { path ->
+                        if (path.startsWith("http")) path
+                        else "https://filamentcolors.xyz$path"
+                    }
+                    
                     FilamentColorResult(
                         name = it.colorName,
                         brand = it.manufacturer.name,
                         material = it.filamentType.name,
                         hexColor = "#${it.hexColor}",
-                        imageFront = it.imageFront?.let { "https://filamentcolors.xyz$it" },
-                        imageBack = it.imageBack?.let { "https://filamentcolors.xyz$it" },
+                        imageFront = imageFront,
+                        imageBack = imageBack,
                         amazonLink = it.amazonLink
                     )
                 }
