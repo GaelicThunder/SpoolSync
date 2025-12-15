@@ -1,14 +1,20 @@
 package dev.gaelicthunder.spoolsync.ui
 
 import android.app.Application
+import android.content.Context
 import android.graphics.Bitmap
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.ActivityResult
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.gson.Gson
+import dev.gaelicthunder.spoolsync.auth.GoogleAuthManager
 import dev.gaelicthunder.spoolsync.data.AppDatabase
 import dev.gaelicthunder.spoolsync.data.FilamentProfile
 import dev.gaelicthunder.spoolsync.data.FilamentRepository
 import dev.gaelicthunder.spoolsync.data.remote.ApiClient
+import dev.gaelicthunder.spoolsync.drive.DriveManager
 import dev.gaelicthunder.spoolsync.service.BambuMqttClient
 import dev.gaelicthunder.spoolsync.util.QRCodeGenerator
 import kotlinx.coroutines.flow.*
@@ -19,6 +25,9 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
     private val repository: FilamentRepository
     private val gson = Gson()
     private var mqttClient: BambuMqttClient? = null
+    private var authManager: GoogleAuthManager? = null
+    private var signInLauncher: ActivityResultLauncher<android.content.Intent>? = null
+    private var driveManager: DriveManager? = null
 
     private val _connectionStatus = MutableStateFlow("Disconnected")
     val connectionStatus = _connectionStatus.asStateFlow()
@@ -44,6 +53,9 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
     val userProfile = _userProfile.asStateFlow()
 
+    private val _backupStatus = MutableStateFlow<String?>(null)
+    val backupStatus = _backupStatus.asStateFlow()
+
     val allProfiles: StateFlow<List<FilamentProfile>>
     val favoriteProfiles: StateFlow<List<FilamentProfile>>
 
@@ -65,6 +77,20 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
 
         loadBrands()
         loadMaterials()
+    }
+
+    fun setAuthManager(manager: GoogleAuthManager, launcher: ActivityResultLauncher<android.content.Intent>) {
+        authManager = manager
+        signInLauncher = launcher
+    }
+
+    fun onGoogleSignInSuccess(context: Context, account: GoogleSignInAccount) {
+        _userProfile.value = UserProfile(
+            displayName = account.displayName ?: "User",
+            email = account.email ?: "",
+            photoUrl = account.photoUrl?.toString() ?: ""
+        )
+        driveManager = DriveManager(context, account)
     }
 
     private fun loadBrands() {
@@ -193,21 +219,55 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun signInWithGoogle() {
-        viewModelScope.launch {
-            _userProfile.value = UserProfile(
-                displayName = "Demo User",
-                email = "demo@spoolsync.app",
-                photoUrl = "https://via.placeholder.com/150"
-            )
+        authManager?.let { manager ->
+            signInLauncher?.launch(manager.getSignInIntent())
         }
     }
 
     fun signOut() {
-        _userProfile.value = null
+        authManager?.signOut {
+            _userProfile.value = null
+            driveManager = null
+        }
     }
 
     fun backupToDrive() {
         viewModelScope.launch {
+            _backupStatus.value = "Backing up..."
+            try {
+                val profiles = favoriteProfiles.value + allProfiles.value.filter { it.isCustom }
+                val json = gson.toJson(profiles)
+                
+                val fileId = driveManager?.uploadBackup("spoolsync_backup.json", json)
+                
+                _backupStatus.value = if (fileId != null) {
+                    "Backup successful!"
+                } else {
+                    "Backup failed"
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _backupStatus.value = "Error: ${e.message}"
+            }
+        }
+    }
+
+    fun restoreFromDrive() {
+        viewModelScope.launch {
+            _backupStatus.value = "Restoring..."
+            try {
+                val json = driveManager?.downloadBackup("spoolsync_backup.json")
+                if (json != null) {
+                    val profiles = gson.fromJson(json, Array<FilamentProfile>::class.java).toList()
+                    profiles.forEach { repository.createCustom(it) }
+                    _backupStatus.value = "Restore successful!"
+                } else {
+                    _backupStatus.value = "No backup found"
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _backupStatus.value = "Error: ${e.message}"
+            }
         }
     }
 
