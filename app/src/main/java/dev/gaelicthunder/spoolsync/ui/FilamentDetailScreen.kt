@@ -14,9 +14,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
 import dev.gaelicthunder.spoolsync.data.FilamentProfile
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,12 +41,17 @@ fun FilamentDetailScreen(
     var showQRCode by remember { mutableStateOf(false) }
     var qrCodeBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var showAmsDialog by remember { mutableStateOf(false) }
+    var filamentColorImage by remember { mutableStateOf<String?>(null) }
 
     if (profile == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Profile not found")
         }
         return
+    }
+
+    LaunchedEffect(profile) {
+        filamentColorImage = viewModel.getFilamentColorImage(profile.brand, profile.name)
     }
 
     Scaffold(
@@ -84,47 +93,34 @@ fun FilamentDetailScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            profile.colorHex?.let { hex ->
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
-                    color = try {
-                        Color(android.graphics.Color.parseColor(hex))
-                    } catch (e: Exception) {
-                        Color.Gray
-                    },
-                    shape = MaterialTheme.shapes.large
-                ) {}
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            if (showQRCode && qrCodeBitmap != null) {
+            if (filamentColorImage != null) {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 16.dp)
+                        .height(300.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "OpenPrintTag QR Code",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Image(
-                            bitmap = qrCodeBitmap!!.asImageBitmap(),
-                            contentDescription = "QR Code",
-                            modifier = Modifier.size(256.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        TextButton(onClick = { showQRCode = false }) {
-                            Text("Hide")
-                        }
-                    }
+                    AsyncImage(
+                        model = filamentColorImage,
+                        contentDescription = "Filament sample",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            } else {
+                profile.colorHex?.let { hex ->
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        color = try {
+                            Color(android.graphics.Color.parseColor(hex))
+                        } catch (e: Exception) {
+                            Color.Gray
+                        },
+                        shape = MaterialTheme.shapes.large
+                    ) {}
+                    Spacer(modifier = Modifier.height(24.dp))
                 }
             }
 
@@ -202,6 +198,14 @@ fun FilamentDetailScreen(
         }
     }
 
+    if (showQRCode && qrCodeBitmap != null) {
+        QRCodeDialog(
+            bitmap = qrCodeBitmap!!,
+            profileName = profile.name,
+            onDismiss = { showQRCode = false }
+        )
+    }
+
     if (showAmsDialog) {
         AmsSyncDialog(
             profile = profile,
@@ -234,6 +238,69 @@ fun DetailRow(label: String, value: String) {
         )
     }
     HorizontalDivider()
+}
+
+@Composable
+fun QRCodeDialog(
+    bitmap: Bitmap,
+    profileName: String,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .wrapContentHeight(),
+            shape = MaterialTheme.shapes.extraLarge
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "OpenPrintTag QR",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = profileName,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Surface(
+                    modifier = Modifier.size(280.dp),
+                    shape = MaterialTheme.shapes.large,
+                    tonalElevation = 4.dp
+                ) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "QR Code",
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = "Scan this code to import the filament profile",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Close")
+                }
+            }
+        }
+    }
 }
 
 @Composable
