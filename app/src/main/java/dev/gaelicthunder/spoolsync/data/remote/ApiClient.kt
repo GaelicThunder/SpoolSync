@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 
 object ApiClient {
 
-    private const val SPOOLMAN_DB_BASE = "https://donkie.github.io"
+    private const val SPOOLMAN_DB_BASE = "https://donkie.github.io/SpoolmanDB/"
     private const val FILAMENT_COLORS_BASE = "https://filamentcolors.xyz"
 
     private val moshi: Moshi by lazy {
