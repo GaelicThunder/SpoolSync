@@ -1,6 +1,8 @@
 package dev.gaelicthunder.spoolsync.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -197,6 +199,83 @@ fun SettingsDialog(
             }
         },
         dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+@Composable
+fun FiltersDialog(
+    brands: List<String>,
+    materials: List<String>,
+    selectedBrand: String?,
+    selectedMaterial: String?,
+    onBrandSelected: (String?) -> Unit,
+    onMaterialSelected: (String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Filter Filaments") },
+        text = {
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                item {
+                    Text(
+                        text = "Brand",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+
+                item {
+                    FilterChip(
+                        selected = selectedBrand == null,
+                        onClick = { onBrandSelected(null) },
+                        label = { Text("All Brands") },
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+
+                items(brands.take(20)) { brand ->
+                    FilterChip(
+                        selected = selectedBrand == brand,
+                        onClick = { onBrandSelected(brand) },
+                        label = { Text(brand) },
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Material",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+
+                item {
+                    FilterChip(
+                        selected = selectedMaterial == null,
+                        onClick = { onMaterialSelected(null) },
+                        label = { Text("All Materials") },
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+
+                items(materials) { material ->
+                    FilterChip(
+                        selected = selectedMaterial == material,
+                        onClick = { onMaterialSelected(material) },
+                        label = { Text(material) },
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Close")
             }
