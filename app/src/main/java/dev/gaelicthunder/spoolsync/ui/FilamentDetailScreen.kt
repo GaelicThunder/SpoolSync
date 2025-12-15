@@ -14,13 +14,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import coil.compose.AsyncImage
 import dev.gaelicthunder.spoolsync.data.FilamentProfile
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,17 +39,12 @@ fun FilamentDetailScreen(
     var showQRCode by remember { mutableStateOf(false) }
     var qrCodeBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var showAmsDialog by remember { mutableStateOf(false) }
-    var filamentColorImage by remember { mutableStateOf<String?>(null) }
 
     if (profile == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Profile not found")
         }
         return
-    }
-
-    LaunchedEffect(profile) {
-        filamentColorImage = viewModel.getFilamentColorImage(profile.brand, profile.name)
     }
 
     Scaffold(
@@ -93,35 +86,19 @@ fun FilamentDetailScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            if (filamentColorImage != null) {
-                Card(
+            profile.colorHex?.let { hex ->
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(300.dp)
-                ) {
-                    AsyncImage(
-                        model = filamentColorImage,
-                        contentDescription = "Filament sample",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            } else {
-                profile.colorHex?.let { hex ->
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
-                        color = try {
-                            Color(android.graphics.Color.parseColor(hex))
-                        } catch (e: Exception) {
-                            Color.Gray
-                        },
-                        shape = MaterialTheme.shapes.large
-                    ) {}
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
+                        .height(200.dp),
+                    color = try {
+                        Color(android.graphics.Color.parseColor(hex))
+                    } catch (e: Exception) {
+                        Color.Gray
+                    },
+                    shape = MaterialTheme.shapes.large
+                ) {}
+                Spacer(modifier = Modifier.height(24.dp))
             }
 
             Text(

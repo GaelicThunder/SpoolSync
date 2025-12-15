@@ -33,11 +33,13 @@ fun ColorBrowserScreen(
     onBack: () -> Unit
 ) {
     val swatches by viewModel.filamentColorsSwatches.collectAsState()
+    val hasMoreColors by viewModel.hasMoreColors.collectAsState()
     var selectedSwatch by remember { mutableStateOf<FilamentColorResult?>(null) }
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
-        viewModel.searchFilamentColors()
+        viewModel.resetColorBrowser()
+        viewModel.loadNextColorPage()
     }
 
     Scaffold(
@@ -48,45 +50,85 @@ fun ColorBrowserScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
         }
     ) { padding ->
-        if (swatches.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(32.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            if (swatches.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(48.dp))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "Loading color swatches...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(32.dp)
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(48.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            "Loading color swatches...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 88.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(swatches, key = { "${it.brand}_${it.name}_${it.material}_${it.hexColor}" }) { swatch ->
-                    SwatchCard(
-                        swatch = swatch,
-                        onClick = { selectedSwatch = swatch }
-                    )
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(swatches, key = { "${it.brand}_${it.name}_${it.hexColor}" }) { swatch ->
+                        SwatchCard(
+                            swatch = swatch,
+                            onClick = { selectedSwatch = swatch }
+                        )
+                    }
+
+                    if (hasMoreColors) {
+                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(2) }) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Button(
+                                    onClick = { viewModel.loadNextColorPage() },
+                                    modifier = Modifier.fillMaxWidth(0.8f)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Load More Colors")
+                                }
+                            }
+                        }
+                    } else {
+                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(2) }) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "All colors loaded",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -122,7 +164,7 @@ fun SwatchCard(
         Column {
             if (swatch.imageFront != null) {
                 AsyncImage(
-                    model = "https://filamentcolors.xyz${swatch.imageFront}",
+                    model = swatch.imageFront,
                     contentDescription = swatch.name,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -200,8 +242,8 @@ fun SwatchDetailDialog(
             ) {
                 if (swatch.imageFront != null) {
                     AsyncImage(
-                        model = "https://filamentcolors.xyz${swatch.imageFront}",
-                        contentDescription = "${swatch.name} swatch",
+                        model = swatch.imageFront,
+                        contentDescription = "${swatch.name} front image",
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(240.dp)
