@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -15,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -22,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -178,6 +181,8 @@ fun SwatchDetailDialog(
     onDismiss: () -> Unit,
     onOpenAmazon: () -> Unit
 ) {
+    val triadicColors = remember(swatch.hexColor) { calculateTriadicColors(swatch.hexColor) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -196,28 +201,11 @@ fun SwatchDetailDialog(
                 if (swatch.imageFront != null) {
                     AsyncImage(
                         model = "https://filamentcolors.xyz${swatch.imageFront}",
-                        contentDescription = "${swatch.name} front",
+                        contentDescription = "${swatch.name} swatch",
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(240.dp),
-                        contentScale = ContentScale.Crop
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-
-                if (swatch.imageBack != null) {
-                    Text(
-                        text = "Back side",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    AsyncImage(
-                        model = "https://filamentcolors.xyz${swatch.imageBack}",
-                        contentDescription = "${swatch.name} back",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(240.dp),
+                            .height(240.dp)
+                            .clip(MaterialTheme.shapes.medium),
                         contentScale = ContentScale.Crop
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -241,13 +229,13 @@ fun SwatchDetailDialog(
                         )
                     }
                     Surface(
-                        modifier = Modifier.size(48.dp),
+                        modifier = Modifier.size(56.dp),
                         color = try {
                             Color(android.graphics.Color.parseColor(swatch.hexColor))
                         } catch (e: Exception) {
                             Color.Gray
                         },
-                        shape = MaterialTheme.shapes.medium,
+                        shape = CircleShape,
                         tonalElevation = 4.dp,
                         shadowElevation = 2.dp
                     ) {}
@@ -278,6 +266,38 @@ fun SwatchDetailDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                 )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Triadic Color Harmony",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    triadicColors.forEach { color ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Surface(
+                                modifier = Modifier.size(48.dp),
+                                color = color,
+                                shape = CircleShape,
+                                tonalElevation = 2.dp,
+                                shadowElevation = 1.dp
+                            ) {}
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = colorToHex(color),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -295,4 +315,27 @@ fun SwatchDetailDialog(
             }
         }
     )
+}
+
+fun calculateTriadicColors(hexColor: String): List<Color> {
+    return try {
+        val color = android.graphics.Color.parseColor(hexColor)
+        val hsv = FloatArray(3)
+        android.graphics.Color.colorToHSV(color, hsv)
+        
+        val baseColor = Color(color)
+        val triadic1 = Color(android.graphics.Color.HSVToColor(floatArrayOf((hsv[0] + 120f) % 360f, hsv[1], hsv[2])))
+        val triadic2 = Color(android.graphics.Color.HSVToColor(floatArrayOf((hsv[0] + 240f) % 360f, hsv[1], hsv[2])))
+        
+        listOf(baseColor, triadic1, triadic2)
+    } catch (e: Exception) {
+        listOf(Color.Gray, Color.Gray, Color.Gray)
+    }
+}
+
+fun colorToHex(color: Color): String {
+    val red = (color.red * 255).roundToInt()
+    val green = (color.green * 255).roundToInt()
+    val blue = (color.blue * 255).roundToInt()
+    return "#%02X%02X%02X".format(red, green, blue)
 }
