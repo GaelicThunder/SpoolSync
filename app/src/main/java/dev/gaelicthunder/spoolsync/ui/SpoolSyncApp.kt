@@ -1,10 +1,14 @@
 package dev.gaelicthunder.spoolsync.ui
 
 import android.content.Intent
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -21,6 +25,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import dev.gaelicthunder.spoolsync.data.FilamentProfile
@@ -48,137 +53,154 @@ fun SpoolSyncApp(
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var showFiltersDialog by remember { mutableStateOf(false) }
+    var currentSection by remember { mutableStateOf(Section.HOME) }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
-                ) {
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                if (userProfile != null) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 16.dp),
+                            .padding(horizontal = 28.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (userProfile != null) {
-                            AsyncImage(
-                                model = userProfile!!.photoUrl,
-                                contentDescription = "Profile",
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
+                        AsyncImage(
+                            model = userProfile!!.photoUrl,
+                            contentDescription = "Profile",
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                text = userProfile!!.displayName,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = userProfile!!.displayName,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = userProfile!!.email,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        } else {
-                            Button(
-                                onClick = { viewModel.signInWithGoogle() },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.Login, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Sign in with Google")
-                            }
+                            Text(
+                                text = userProfile!!.email,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
-                    Divider()
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                        label = { Text("Home") },
-                        selected = true,
-                        onClick = { scope.launch { drawerState.close() } }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Favorite, contentDescription = null) },
-                        label = { Text("Favorites") },
-                        selected = false,
-                        onClick = { scope.launch { drawerState.close() } }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.QrCodeScanner, contentDescription = null) },
-                        label = { Text("Scan QR/NFC") },
-                        selected = false,
-                        onClick = {
-                            onNavigateToScanner()
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Palette, contentDescription = null) },
-                        label = { Text("Color Browser") },
-                        selected = false,
-                        onClick = {
-                            onNavigateToColorBrowser()
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    if (userProfile != null) {
-                        NavigationDrawerItem(
-                            icon = { Icon(Icons.Default.CloudUpload, contentDescription = null) },
-                            label = { Text("Backup to Drive") },
-                            selected = false,
-                            onClick = {
-                                viewModel.backupToDrive()
-                                scope.launch { drawerState.close() }
-                            }
-                        )
-                        
-                        NavigationDrawerItem(
-                            icon = { Icon(Icons.Default.Logout, contentDescription = null) },
-                            label = { Text("Sign Out") },
-                            selected = false,
-                            onClick = {
-                                viewModel.signOut()
-                                scope.launch { drawerState.close() }
-                            }
-                        )
+                } else {
+                    Button(
+                        onClick = { viewModel.signInWithGoogle() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 28.dp, vertical = 16.dp)
+                    ) {
+                        Icon(Icons.Default.Login, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Sign in with Google")
                     }
+                }
+                
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                    label = { Text("Home") },
+                    selected = currentSection == Section.HOME,
+                    onClick = {
+                        currentSection = Section.HOME
+                        scope.launch { drawerState.close() }
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Favorite, contentDescription = null) },
+                    label = { Text("Favorites") },
+                    selected = currentSection == Section.FAVORITES,
+                    onClick = {
+                        currentSection = Section.FAVORITES
+                        scope.launch { drawerState.close() }
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.QrCodeScanner, contentDescription = null) },
+                    label = { Text("Scan QR/NFC") },
+                    selected = false,
+                    onClick = {
+                        onNavigateToScanner()
+                        scope.launch { drawerState.close() }
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Palette, contentDescription = null) },
+                    label = { Text("Color Browser") },
+                    selected = false,
+                    onClick = {
+                        onNavigateToColorBrowser()
+                        scope.launch { drawerState.close() }
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                if (userProfile != null) {
                     NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                        label = { Text("Settings") },
+                        icon = { Icon(Icons.Default.CloudUpload, contentDescription = null) },
+                        label = { Text("Backup to Drive") },
                         selected = false,
                         onClick = {
-                            onNavigateToSettings()
+                            viewModel.backupToDrive()
                             scope.launch { drawerState.close() }
-                        }
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+                    
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.Logout, contentDescription = null) },
+                        label = { Text("Sign Out") },
+                        selected = false,
+                        onClick = {
+                            viewModel.signOut()
+                            scope.launch { drawerState.close() }
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
                 }
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text("Settings") },
+                    selected = false,
+                    onClick = {
+                        onNavigateToSettings()
+                        scope.launch { drawerState.close() }
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
             }
         }
     ) {
         Scaffold(
             floatingActionButton = {
-                FloatingActionButton(onClick = { showCreateDialog = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "Create custom")
-                }
+                ExtendedFloatingActionButton(
+                    onClick = { showCreateDialog = true },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Create") }
+                )
             }
         ) { padding ->
             Column(
@@ -188,12 +210,12 @@ fun SpoolSyncApp(
             ) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    tonalElevation = 3.dp
+                    tonalElevation = 2.dp
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                            .padding(horizontal = 4.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -202,20 +224,40 @@ fun SpoolSyncApp(
                                 Icon(Icons.Default.Menu, contentDescription = "Menu")
                             }
                             Text(
-                                text = "SpoolSync",
-                                style = MaterialTheme.typography.titleLarge,
+                                text = when (currentSection) {
+                                    Section.HOME -> "SpoolSync"
+                                    Section.FAVORITES -> "Favorites"
+                                },
+                                style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold
                             )
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = connectionStatus,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(horizontal = 8.dp)
-                            )
+                            if (connectionStatus != "Disconnected") {
+                                Badge(
+                                    containerColor = if (connectionStatus == "Connected") 
+                                        MaterialTheme.colorScheme.primary 
+                                    else 
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                ) {
+                                    Text(
+                                        text = connectionStatus,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
                             IconButton(onClick = { showFiltersDialog = true }) {
-                                Icon(Icons.Default.FilterList, contentDescription = "Filters")
+                                Badge(
+                                    containerColor = if (selectedBrand != null || selectedMaterial != null)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        Color.Transparent
+                                ) {
+                                    Icon(Icons.Default.FilterList, contentDescription = "Filters")
+                                }
                             }
                         }
                     }
@@ -228,22 +270,34 @@ fun SpoolSyncApp(
                         value = searchQuery,
                         onValueChange = { viewModel.updateSearchQuery(it) },
                         label = { Text("Search SpoolmanDB") },
+                        placeholder = { Text("Brand, material, color...") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(
                             onSearch = { 
-                                viewModel.searchFilaments(searchQuery)
+                                if (searchQuery.isNotBlank()) {
+                                    viewModel.searchFilaments(searchQuery)
+                                }
                             }
                         ),
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null)
+                        },
                         trailingIcon = {
-                            IconButton(onClick = { viewModel.searchFilaments(searchQuery) }) {
-                                Icon(Icons.Default.Search, contentDescription = "Search")
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.updateSearchQuery("") }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear")
+                                }
                             }
                         }
                     )
 
-                    if (selectedBrand != null || selectedMaterial != null) {
+                    AnimatedVisibility(
+                        visible = selectedBrand != null || selectedMaterial != null,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -255,7 +309,13 @@ fun SpoolSyncApp(
                                     selected = true,
                                     onClick = { viewModel.setBrandFilter(null) },
                                     label = { Text(brand) },
-                                    trailingIcon = { Icon(Icons.Default.Close, contentDescription = null) }
+                                    trailingIcon = { 
+                                        Icon(
+                                            Icons.Default.Close, 
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        ) 
+                                    }
                                 )
                             }
                             selectedMaterial?.let { material ->
@@ -263,7 +323,13 @@ fun SpoolSyncApp(
                                     selected = true,
                                     onClick = { viewModel.setMaterialFilter(null) },
                                     label = { Text(material) },
-                                    trailingIcon = { Icon(Icons.Default.Close, contentDescription = null) }
+                                    trailingIcon = { 
+                                        Icon(
+                                            Icons.Default.Close, 
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        ) 
+                                    }
                                 )
                             }
                         }
@@ -272,107 +338,76 @@ fun SpoolSyncApp(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                val filteredProfiles = remember(allProfiles, selectedBrand, selectedMaterial) {
-                    allProfiles.filter {
-                        (selectedBrand == null || it.brand == selectedBrand) &&
-                        (selectedMaterial == null || it.material == selectedMaterial)
+                val displayProfiles = remember(currentSection, allProfiles, favoriteProfiles, selectedBrand, selectedMaterial) {
+                    when (currentSection) {
+                        Section.HOME -> {
+                            allProfiles.filter { profile ->
+                                (selectedBrand == null || profile.brand == selectedBrand) &&
+                                (selectedMaterial == null || profile.material == selectedMaterial)
+                            }
+                        }
+                        Section.FAVORITES -> favoriteProfiles
                     }
                 }
 
-                if (favoriteProfiles.isEmpty() && filteredProfiles.isEmpty()) {
+                if (displayProfiles.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(32.dp)
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.Search,
+                                imageVector = when (currentSection) {
+                                    Section.HOME -> Icons.Default.Search
+                                    Section.FAVORITES -> Icons.Default.FavoriteBorder
+                                },
                                 contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(72.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "Search for filaments or create a custom profile",
+                                text = when (currentSection) {
+                                    Section.HOME -> "Search for filaments or create a custom profile"
+                                    Section.FAVORITES -> "No favorites yet\nAdd filaments to your favorites to see them here"
+                                },
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
                         }
                     }
                 } else {
                     LazyColumn(
+                        state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp, bottom = 88.dp)
                     ) {
-                        if (favoriteProfiles.isNotEmpty()) {
-                            item(key = "favorites_header") {
-                                Text(
-                                    text = "Favorites",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                            }
-
-                            items(
-                                items = favoriteProfiles,
-                                key = { "fav_${it.id}" }
-                            ) { profile ->
-                                FilamentCard(
-                                    profile = profile,
-                                    onClick = { onFilamentClick(profile.id) },
-                                    onToggleFavorite = { viewModel.toggleFavorite(profile) },
-                                    onShare = {
-                                        val json = viewModel.exportProfile(profile)
-                                        val intent = Intent(Intent.ACTION_SEND).apply {
-                                            type = "application/json"
-                                            putExtra(Intent.EXTRA_SUBJECT, "SpoolSync: ${profile.name}")
-                                            putExtra(Intent.EXTRA_TEXT, json)
-                                        }
-                                        context.startActivity(Intent.createChooser(intent, "Share profile"))
-                                    },
-                                    onDelete = if (profile.isCustom) {
-                                        { viewModel.deleteProfile(profile) }
-                                    } else null
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-
-                            item(key = "spacer") { Spacer(modifier = Modifier.height(16.dp)) }
-                        }
-
-                        val nonFavorites = filteredProfiles.filter { !it.isFavorite }
-                        if (nonFavorites.isNotEmpty()) {
-                            item(key = "results_header") {
-                                Text(
-                                    text = "Search Results",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                            }
-
-                            items(
-                                items = nonFavorites,
-                                key = { "result_${it.id}" }
-                            ) { profile ->
-                                FilamentCard(
-                                    profile = profile,
-                                    onClick = { onFilamentClick(profile.id) },
-                                    onToggleFavorite = { viewModel.toggleFavorite(profile) },
-                                    onShare = {
-                                        val json = viewModel.exportProfile(profile)
-                                        val intent = Intent(Intent.ACTION_SEND).apply {
-                                            type = "application/json"
-                                            putExtra(Intent.EXTRA_SUBJECT, "SpoolSync: ${profile.name}")
-                                            putExtra(Intent.EXTRA_TEXT, json)
-                                        }
-                                        context.startActivity(Intent.createChooser(intent, "Share profile"))
-                                    },
-                                    onDelete = null
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
+                        items(
+                            items = displayProfiles,
+                            key = { "profile_${it.id}_${it.isFavorite}" }
+                        ) { profile ->
+                            FilamentCard(
+                                profile = profile,
+                                onClick = { onFilamentClick(profile.id) },
+                                onToggleFavorite = { viewModel.toggleFavorite(profile) },
+                                onShare = {
+                                    val json = viewModel.exportProfile(profile)
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "application/json"
+                                        putExtra(Intent.EXTRA_SUBJECT, "SpoolSync: ${profile.name}")
+                                        putExtra(Intent.EXTRA_TEXT, json)
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, "Share profile"))
+                                },
+                                onDelete = if (profile.isCustom) {
+                                    { viewModel.deleteProfile(profile) }
+                                } else null
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
                 }
@@ -419,36 +454,42 @@ fun FilamentCard(
     onDelete: (() -> Unit)?
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             profile.colorHex?.let { hex ->
                 Surface(
                     modifier = Modifier
-                        .size(48.dp)
-                        .padding(end = 12.dp),
+                        .size(56.dp),
                     color = try {
                         Color(android.graphics.Color.parseColor(hex))
                     } catch (e: Exception) {
-                        Color.Gray
+                        MaterialTheme.colorScheme.surfaceVariant
                     },
-                    shape = MaterialTheme.shapes.small
+                    shape = MaterialTheme.shapes.medium,
+                    tonalElevation = 4.dp,
+                    shadowElevation = 2.dp
                 ) {}
             }
+
+            Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = profile.name,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "${profile.brand} · ${profile.material}",
@@ -464,7 +505,8 @@ fun FilamentCard(
                     Text(
                         text = "Custom Profile",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.tertiary,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
@@ -479,7 +521,11 @@ fun FilamentCard(
                 }
                 Row {
                     IconButton(onClick = onShare) {
-                        Icon(Icons.Default.Share, contentDescription = "Share")
+                        Icon(
+                            Icons.Default.Share, 
+                            contentDescription = "Share",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     onDelete?.let {
                         IconButton(onClick = it) {
@@ -494,4 +540,8 @@ fun FilamentCard(
             }
         }
     }
+}
+
+enum class Section {
+    HOME, FAVORITES
 }
