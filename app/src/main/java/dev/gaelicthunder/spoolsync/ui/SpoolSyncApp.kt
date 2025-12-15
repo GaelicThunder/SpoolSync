@@ -28,7 +28,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.view.WindowCompat
 import coil.compose.AsyncImage
 import dev.gaelicthunder.spoolsync.data.FilamentProfile
 import kotlinx.coroutines.launch
@@ -44,12 +43,14 @@ fun SpoolSyncApp(
 ) {
     val allProfiles by viewModel.allProfiles.collectAsState()
     val favoriteProfiles by viewModel.favoriteProfiles.collectAsState()
+    val searchResults by viewModel.searchResults.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val connectionStatus by viewModel.connectionStatus.collectAsState()
     val availableBrands by viewModel.availableBrands.collectAsState()
     val availableMaterials by viewModel.availableMaterials.collectAsState()
     val selectedBrands by viewModel.selectedBrands.collectAsState()
     val selectedMaterials by viewModel.selectedMaterials.collectAsState()
+    val isSyncing by viewModel.isSyncing.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -228,6 +229,14 @@ fun SpoolSyncApp(
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (isSyncing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .padding(end = 8.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                }
                                 if (connectionStatus != "Disconnected") {
                                     Badge(
                                         containerColor = if (connectionStatus == "Connected") 
@@ -244,11 +253,14 @@ fun SpoolSyncApp(
                                     }
                                 }
                                 IconButton(onClick = { showFiltersDialog = true }) {
-                                    Badge(
-                                        containerColor = if (selectedBrands.isNotEmpty() || selectedMaterials.isNotEmpty())
-                                            MaterialTheme.colorScheme.primary
-                                        else
-                                            Color.Transparent
+                                    BadgedBox(
+                                        badge = {
+                                            if (selectedBrands.isNotEmpty() || selectedMaterials.isNotEmpty()) {
+                                                Badge {
+                                                    Text("${selectedBrands.size + selectedMaterials.size}")
+                                                }
+                                            }
+                                        }
                                     ) {
                                         Icon(Icons.Default.FilterList, contentDescription = "Filters")
                                     }
@@ -267,10 +279,8 @@ fun SpoolSyncApp(
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                                 keyboardActions = KeyboardActions(
                                     onSearch = { 
-                                        if (searchQuery.isNotBlank()) {
-                                            viewModel.searchFilaments(searchQuery)
-                                            focusManager.clearFocus()
-                                        }
+                                        focusManager.clearFocus()
+                                        viewModel.applyFilters()
                                     }
                                 ),
                                 leadingIcon = {
@@ -288,12 +298,36 @@ fun SpoolSyncApp(
                     }
                 }
 
-                val displayProfiles = remember(currentSection, allProfiles, favoriteProfiles, selectedBrands, selectedMaterials) {
+                val displayProfiles = remember(
+                    currentSection, 
+                    allProfiles, 
+                    favoriteProfiles, 
+                    searchResults,
+                    searchQuery,
+                    selectedBrands, 
+                    selectedMaterials
+                ) {
                     when (currentSection) {
                         Section.HOME -> {
-                            allProfiles.filter { profile ->
-                                (selectedBrands.isEmpty() || selectedBrands.contains(profile.brand)) &&
-                                (selectedMaterials.isEmpty() || selectedMaterials.contains(profile.material))
+                            if (searchQuery.isNotEmpty() || selectedBrands.isNotEmpty() || selectedMaterials.isNotEmpty()) {
+                                searchResults.map { cached ->
+                                    FilamentProfile(
+                                        name = cached.name,
+                                        brand = cached.manufacturer,
+                                        material = cached.material,
+                                        colorHex = cached.colorHex,
+                                        minTemp = cached.extruderTemp,
+                                        maxTemp = cached.extruderTemp?.plus(10),
+                                        bedTemp = cached.bedTemp,
+                                        density = cached.density.toFloat(),
+                                        diameter = cached.diameter.toFloat(),
+                                        vendorId = cached.id,
+                                        isFavorite = false,
+                                        isCustom = false
+                                    )
+                                }
+                            } else {
+                                allProfiles
                             }
                         }
                         Section.FAVORITES -> favoriteProfiles
@@ -334,15 +368,23 @@ fun SpoolSyncApp(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp, bottom = 88.dp)
                     ) {
                         items(
                             items = displayProfiles,
-                            key = { "profile_${it.id}_${it.isFavorite}" }
+                            key = { "profile_${it.id}_${it.isFavorite}_${it.name}" }
                         ) { profile ->
                             FilamentCard(
                                 profile = profile,
-                                onClick = { onFilamentClick(profile.id) },
+                                onClick = { 
+                                    if (profile.id != 0L) {
+                                        onFilamentClick(profile.id)
+                                    } else {
+                                        viewModel.importFilament(
+                                            searchResults.find { it.name == profile.name && it.manufacturer == profile.brand }!!
+                                        )
+                                    }
+                                },
                                 onToggleFavorite = { viewModel.toggleFavorite(profile) },
                                 onShare = {
                                     val json = viewModel.exportProfile(profile)
@@ -388,7 +430,7 @@ fun SpoolSyncApp(
             onClearMaterials = { viewModel.clearMaterialFilters() },
             onDismiss = { 
                 showFiltersDialog = false
-                viewModel.loadAllFilaments()
+                viewModel.applyFilters()
             }
         )
     }
