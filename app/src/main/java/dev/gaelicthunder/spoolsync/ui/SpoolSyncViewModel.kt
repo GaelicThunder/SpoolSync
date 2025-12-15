@@ -118,9 +118,10 @@ class SpoolSyncViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun getDefaultBrands(): List<String> {
         return listOf(
-            "3D-Fuel", "3DXTech", "Bambu Lab", "Colorfabb", "eSUN",
-            "Fiberlogy", "Fillamentum", "FormFutura", "Hatchbox", "MatterHackers",
-            "Overture", "PolyLite", "PolyMaker", "Prusament", "Push Plastic",
+            "3D-Fuel", "3DXTech", "Anycubic", "Bambu Lab", "Colorfabb", 
+            "Creality", "Elegoo", "eSUN", "Fiberlogy", "Fillamentum", 
+            "FormFutura", "Geeetech", "Hatchbox", "MatterHackers", "Overture", 
+            "PolyLite", "PolyMaker", "Prusament", "Push Plastic", "Reprapper",
             "Sunlu", "Ultimaker"
         ).sorted()
     }
