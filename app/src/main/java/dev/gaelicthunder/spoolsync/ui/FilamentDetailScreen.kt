@@ -1,6 +1,8 @@
 package dev.gaelicthunder.spoolsync.ui
 
 import android.content.Intent
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -11,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,6 +33,10 @@ fun FilamentDetailScreen(
     val profile = remember(filamentId, allProfiles, favoriteProfiles) {
         (allProfiles + favoriteProfiles).find { it.id == filamentId }
     }
+
+    var showQRCode by remember { mutableStateOf(false) }
+    var qrCodeBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var showAmsDialog by remember { mutableStateOf(false) }
 
     if (profile == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -92,6 +99,35 @@ fun FilamentDetailScreen(
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
+            if (showQRCode && qrCodeBitmap != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "OpenPrintTag QR Code",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Image(
+                            bitmap = qrCodeBitmap!!.asImageBitmap(),
+                            contentDescription = "QR Code",
+                            modifier = Modifier.size(256.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(onClick = { showQRCode = false }) {
+                            Text("Hide")
+                        }
+                    }
+                }
+            }
+
             Text(
                 text = "Filament Details",
                 style = MaterialTheme.typography.headlineSmall,
@@ -124,7 +160,7 @@ fun FilamentDetailScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = { /* TODO: AMS Sync */ },
+                onClick = { showAmsDialog = true },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Default.Send, contentDescription = null)
@@ -135,7 +171,10 @@ fun FilamentDetailScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedButton(
-                onClick = { /* TODO: Generate QR */ },
+                onClick = {
+                    qrCodeBitmap = viewModel.generateQRCode(profile)
+                    showQRCode = true
+                },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Default.QrCode, contentDescription = null)
@@ -162,6 +201,17 @@ fun FilamentDetailScreen(
             }
         }
     }
+
+    if (showAmsDialog) {
+        AmsSyncDialog(
+            profile = profile,
+            onSync = { amsId, trayId ->
+                viewModel.syncFilamentToAms(profile, amsId, trayId)
+                showAmsDialog = false
+            },
+            onDismiss = { showAmsDialog = false }
+        )
+    }
 }
 
 @Composable
@@ -184,4 +234,58 @@ fun DetailRow(label: String, value: String) {
         )
     }
     HorizontalDivider()
+}
+
+@Composable
+fun AmsSyncDialog(
+    profile: FilamentProfile,
+    onSync: (Int, Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var amsId by remember { mutableStateOf("0") }
+    var trayId by remember { mutableStateOf("0") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sync to AMS") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Select AMS and tray to sync ${profile.name}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                OutlinedTextField(
+                    value = amsId,
+                    onValueChange = { amsId = it },
+                    label = { Text("AMS ID (0-3)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = trayId,
+                    onValueChange = { trayId = it },
+                    label = { Text("Tray ID (0-3)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val ams = amsId.toIntOrNull() ?: 0
+                    val tray = trayId.toIntOrNull() ?: 0
+                    onSync(ams, tray)
+                },
+                enabled = amsId.toIntOrNull() in 0..3 && trayId.toIntOrNull() in 0..3
+            ) {
+                Text("Sync")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
