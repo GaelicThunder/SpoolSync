@@ -3,9 +3,14 @@ package dev.gaelicthunder.spoolsync.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -28,7 +33,11 @@ fun CreateFilamentDialog(
         onDismissRequest = onDismiss,
         title = { Text("Create Custom Filament") },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -201,6 +210,105 @@ fun SettingsDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Close")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FiltersDialogMultiSelect(
+    brands: List<String>,
+    materials: List<String>,
+    selectedBrands: Set<String>,
+    selectedMaterials: Set<String>,
+    onBrandToggle: (String) -> Unit,
+    onMaterialToggle: (String) -> Unit,
+    onClearBrands: () -> Unit,
+    onClearMaterials: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Filter Filaments") },
+        text = {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Brands (${selectedBrands.size} selected)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (selectedBrands.isNotEmpty()) {
+                            IconButton(onClick = onClearBrands) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear brands")
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                items(brands) { brand ->
+                    FilterChip(
+                        selected = selectedBrands.contains(brand),
+                        onClick = { onBrandToggle(brand) },
+                        label = { Text(brand) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Materials (${selectedMaterials.size} selected)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (selectedMaterials.isNotEmpty()) {
+                            IconButton(onClick = onClearMaterials) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear materials")
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                items(materials) { material ->
+                    FilterChip(
+                        selected = selectedMaterials.contains(material),
+                        onClick = { onMaterialToggle(material) },
+                        label = { Text(material) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Apply")
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = {
+                    onClearBrands()
+                    onClearMaterials()
+                }
+            ) {
+                Text("Clear All")
             }
         }
     )
