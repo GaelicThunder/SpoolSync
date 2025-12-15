@@ -1,42 +1,52 @@
 package dev.gaelicthunder.spoolsync.data.remote
 
 import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
 import dev.gaelicthunder.spoolsync.data.FilamentProfile
 
+@JsonClass(generateAdapter = true)
 data class SpoolmanFilament(
-    val id: Int,
+    val id: String,
+    val manufacturer: String,
     val name: String,
-    @Json(name = "vendor") val brand: BrandInfo?,
-    val material: String?,
-    @Json(name = "color_hex") val colorHex: String?,
+    val material: String,
+    val density: Double,
+    val weight: Double,
     @Json(name = "spool_weight") val spoolWeight: Double?,
-    @Json(name = "density") val density: Double?,
-    @Json(name = "diameter") val diameter: Double?,
-    @Json(name = "settings_extruder_temp") val extruderTemp: Int?,
-    @Json(name = "settings_bed_temp") val bedTemp: Int?
+    @Json(name = "spool_type") val spoolType: String?,
+    val diameter: Double,
+    @Json(name = "color_hex") val colorHex: String?,
+    @Json(name = "color_hexes") val colorHexes: List<String>?,
+    @Json(name = "extruder_temp") val extruderTemp: Int?,
+    @Json(name = "bed_temp") val bedTemp: Int?,
+    val finish: String?,
+    @Json(name = "multi_color_direction") val multiColorDirection: String?,
+    val pattern: String?,
+    val translucent: Boolean = false,
+    val glow: Boolean = false
 ) {
-    fun toLocalProfile(): FilamentProfile? {
-        val brandName = brand?.name ?: return null
-        val materialName = material ?: return null
-        
+    fun toLocalProfile(): FilamentProfile {
         return FilamentProfile(
             name = name,
-            brand = brandName,
-            material = materialName,
+            brand = manufacturer,
+            material = material,
             colorHex = colorHex,
             minTemp = extruderTemp,
             maxTemp = extruderTemp?.plus(10),
             bedTemp = bedTemp,
-            density = (density ?: 1.24).toFloat(),
-            diameter = (diameter ?: 1.75).toFloat(),
-            vendorId = id.toString(),
+            density = density.toFloat(),
+            diameter = diameter.toFloat(),
+            vendorId = id,
             isFavorite = false,
             isCustom = false
         )
     }
 }
 
-data class BrandInfo(
-    val id: Int,
-    val name: String
+@JsonClass(generateAdapter = true)
+data class SpoolmanMaterial(
+    val material: String,
+    val density: Double,
+    @Json(name = "extruder_temp") val extruderTemp: Int?,
+    @Json(name = "bed_temp") val bedTemp: Int?
 )
